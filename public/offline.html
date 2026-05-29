@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sin Conexión - Inventario</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: #f4f4f5;
+            color: #18181b;
+            text-align: center;
+        }
+
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            max-width: 400px;
+        }
+
+        h1 {
+            color: #4f46e5;
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            color: #71717a;
+            margin-bottom: 1.5rem;
+        }
+
+        button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>Sin conexión</h1>
+        <p>Parece que no tienes internet en este momento. La aplicación necesita conexión para sincronizar los datos del
+            inventario.</p>
+        <button onclick="window.location.reload()">Reintentar conexión</button>
+    </div>
+</body>
+
+</html>

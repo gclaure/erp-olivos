@@ -1,0 +1,113 @@
+services:
+  # PHP Application
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    image: inventory-app
+    container_name: inventory-app
+    restart: unless-stopped
+    tty: true
+    environment:
+      SERVICE_NAME: app
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-inventory_gclaure}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-admin123}
+    volumes:
+      - ./:/var/www
+      - ./docker/php/entrypoint.sh:/usr/local/bin/entrypoint.sh
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/production.ini
+    entrypoint: ["/usr/local/bin/entrypoint.sh"]
+    command: ["php-fpm"]
+    networks:
+      - inventory-network
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Tareas programadas (Schedule Worker)
+  scheduler:
+    image: inventory-app
+    container_name: inventory-scheduler
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: scheduler
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-inventory_gclaure}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-admin123}
+    volumes:
+      - ./:/var/www
+    entrypoint: ["php", "artisan", "schedule:work"]
+    networks:
+      - inventory-network
+    depends_on:
+      - app
+      - db
+
+  # Nginx Service
+  web:
+    image: nginx:alpine
+    container_name: inventory-web
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - inventory-network
+    depends_on:
+      - app
+
+  # Ngrok Service (Static Free Domain)
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: inventory-ngrok
+    restart: unless-stopped
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command:
+      - "http"
+      - "--domain=${NGROK_DOMAIN}"
+      - "web:80"
+    networks:
+      - inventory-network
+    depends_on:
+      - web
+
+  # PostgreSQL Service
+  db:
+    image: postgres:16-alpine
+    container_name: inventory-db
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-inventory_gclaure}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
+    volumes:
+      - inventory-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-inventory_gclaure}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inventory-network
+
+networks:
+  inventory-network:
+    driver: bridge
+
+volumes:
+  inventory-db-data:
+    driver: local

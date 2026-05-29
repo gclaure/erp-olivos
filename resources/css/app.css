@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+
+    /* ══════════════════════════════════════════════
+       SISTEMA DE COLORES GLOBAL — LIGHT MODE
+       ══════════════════════════════════════════════ */
+    :root {
+        --color-background: 250 250 250;       /* zinc-50 */
+        --color-surface: 255 255 255;           /* white */
+        --color-border: 229 229 229;            /* zinc-200 */
+
+        --color-text-primary: 23 23 23;         /* zinc-900 */
+        --color-text-secondary: 82 82 82;       /* zinc-600 */
+        --color-text-muted: 163 163 163;        /* zinc-400 */
+
+        --color-primary: 79 70 229;             /* indigo-600 */
+        --color-primary-hover: 67 56 202;       /* indigo-700 */
+        --color-primary-light: 224 231 255;     /* indigo-100 */
+
+        --color-success: 16 185 129;            /* emerald-500 */
+        --color-warning: 245 158 11;            /* amber-500 */
+        --color-danger: 244 63 94;              /* rose-500 */
+        --color-info: 14 165 233;               /* sky-500 */
+    }
+
+    /* ══════════════════════════════════════════════
+       SISTEMA DE COLORES GLOBAL — DARK MODE
+       ══════════════════════════════════════════════ */
+    .dark {
+        --color-background: 31 41 55;           /* gray-800 */
+        --color-surface: 55 65 81;              /* gray-700 */
+        --color-border: 75 85 99;               /* gray-600 */
+
+        --color-text-primary: 255 255 255;      /* white */
+        --color-text-secondary: 156 163 175;    /* gray-400 */
+        --color-text-muted: 107 114 128;        /* gray-500 */
+
+        --color-primary: 99 102 241;            /* indigo-500 */
+        --color-primary-hover: 129 140 248;     /* indigo-400 */
+        --color-primary-light: 49 46 129;       /* indigo-900 */
+
+        --color-success: 52 211 153;            /* emerald-400 */
+        --color-warning: 251 191 36;            /* amber-400 */
+        --color-danger: 251 113 133;            /* rose-400 */
+        --color-info: 56 189 248;               /* sky-400 */
+    }
+
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: rgb(var(--color-border));
+    }
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #d4d4d8;
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #a1a1aa;
+}
