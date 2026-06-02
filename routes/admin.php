@@ -170,8 +170,8 @@ Route::get('api/selects/products', [\App\Http\Controllers\Api\ApiSelectControlle
 Route::get('api/selects/unit-measures', [\App\Http\Controllers\Api\ApiSelectController::class, 'unitOfMeasures'])->name('api.selects.unit-measures');
 Route::get('api/sidebar', [\App\Http\Controllers\Api\SidebarController::class, 'index'])->name('api.sidebar');
 
-// Administración (Solo Admins)
-Route::middleware('role:Admin|Administrador|admin|administrador')->group(function () {
+// Administración (Solo Admins y Super Admins)
+Route::middleware('role:Admin|Administrador|admin|administrador|Super-admin|Super Admin|Super Administrador|super administrador')->group(function () {
     Route::get('users', [\App\Http\Controllers\Admin\UserController::class, 'index'])->name('users.index');
     Route::post('users', [\App\Http\Controllers\Admin\UserController::class, 'store'])->name('users.store');
     Route::put('users/{user}', [\App\Http\Controllers\Admin\UserController::class, 'update'])->name('users.update');

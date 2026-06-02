@@ -28,7 +28,7 @@ return [
 
     'events_enabled' => false,
 
-    'teams' => true,
+    'teams' => false,
 
     'team_resolver' => \Spatie\Permission\DefaultTeamResolver::class,
 
