@@ -47,7 +47,6 @@ class RoleController extends Controller
     {
         $roles = Role::query()
             ->with('permissions')
-            ->where(config('permission.column_names.team_foreign_key'), getPermissionsTeamId())
             ->whereNotIn('name', ['Super Admin', 'Super-admin'])
             ->when($request->search, fn ($q) => $q->where('name', 'ilike', "%{$request->search}%"))
             ->orderBy('name')
@@ -91,12 +90,8 @@ class RoleController extends Controller
             'permissions' => 'array'
         ]);
 
-        $teamsKey = config('permission.column_names.team_foreign_key');
-        $teamId = getPermissionsTeamId();
-
-        // Validar unicidad dentro del tenant
+        // Validar unicidad
         $exists = Role::where('name', $validated['name'])
-            ->where($teamsKey, $teamId)
             ->exists();
 
         if ($exists) {
@@ -106,7 +101,6 @@ class RoleController extends Controller
         $role = Role::create([
             'name' => $validated['name'], 
             'guard_name' => 'web',
-            $teamsKey => $teamId
         ]);
         
         if (!empty($validated['permissions'])) {
@@ -118,8 +112,6 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role): RedirectResponse
     {
-        $teamsKey = config('permission.column_names.team_foreign_key');
-        $teamId = getPermissionsTeamId();
         $user = $request->user();
 
         $rules = [
@@ -133,7 +125,6 @@ class RoleController extends Controller
                 'string',
                 'max:100',
                 Rule::unique('roles', 'name')
-                    ->where($teamsKey, $teamId)
                     ->ignore($role->id)
             ];
         }
