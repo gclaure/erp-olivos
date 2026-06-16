@@ -1,10 +1,43 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { usePage, router, Link } from '@inertiajs/vue3';
-import {
-    solicitarPermisoNotificaciones,
-    mostrarNotificacionBrowser
-} from '@/composables/useNotificacionesBrowser.js';
+
+// ── Notificaciones del navegador (inline) ────────────────────────────────────
+const _reproducirSonido = () => {
+    try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const tocar = (f, t, d) => {
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.type = 'sine'; o.frequency.value = f;
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(0.25, t + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, t + d);
+            o.start(t); o.stop(t + d);
+        };
+        tocar(880,  ctx.currentTime,        0.18);
+        tocar(1100, ctx.currentTime + 0.18, 0.35);
+    } catch { /* silencioso */ }
+};
+
+const solicitarPermisoNotificaciones = async () => {
+    if (!('Notification' in window)) return 'denied';
+    if (Notification.permission === 'default') return await Notification.requestPermission();
+    return Notification.permission;
+};
+
+const mostrarNotificacionBrowser = (titulo, cuerpo, url = null, conSonido = true) => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+        const n = new Notification(titulo, { body: cuerpo, icon: '/favicon.ico', lang: 'es' });
+        if (url) n.onclick = () => { window.focus(); window.location.href = url; n.close(); };
+        if (conSonido) _reproducirSonido();
+        setTimeout(() => n.close(), 7000);
+    } catch { /* silencioso */ }
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 const page = usePage();
 const notifications = computed(() => page.props.notifications?.latest || []);
