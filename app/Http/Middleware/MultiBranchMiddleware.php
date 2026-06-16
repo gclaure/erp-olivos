@@ -30,6 +30,14 @@ class MultiBranchMiddleware
             return $next($request);
         }
 
+        // Check if the user is active
+        if (!$user->is_active) {
+            auth()->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            return redirect()->route('login')->with('error', 'Tu cuenta ha sido desactivada por el administrador.');
+        }
+
         // If branch and warehouse are already active, proceed
         if (Branch::hasActiveBranch() && Branch::getActiveWarehouseId()) {
             return $next($request);

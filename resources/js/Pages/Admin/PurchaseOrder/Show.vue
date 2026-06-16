@@ -155,7 +155,7 @@ const submitApprove = () => {
                     </span>
                 </div>
                 <h1 class="text-2xl font-black text-zinc-900 dark:text-white leading-tight tracking-tight uppercase mt-2">Detalle de Solicitud</h1>
-                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Revisión general y procesamiento administrativo de requisición de existencias.</p>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Revisión general y procesamiento administrativo de solicitud de existencias.</p>
             </div>
             <Link :href="route('admin.purchase-orders.index')" 
                   class="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 text-xs font-black uppercase tracking-widest rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-all shadow-sm active:scale-95">
@@ -174,7 +174,7 @@ const submitApprove = () => {
                 <div>
                     <h3 class="text-sm font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-wide">Acción Administrativa Requerida</h3>
                     <p class="text-xs text-indigo-700/80 dark:text-indigo-400/80 mt-1 leading-relaxed font-semibold">
-                        Esta solicitud de compra está pendiente de autorización. Como administrador, valide los costos y cantidades estimadas antes de aprobar administrativamente la requisición.
+                        Esta solicitud de compra está pendiente de autorización. Como administrador, valide los costos y cantidades estimadas antes de aprobar administrativamente la solicitud.
                     </p>
                 </div>
             </div>
@@ -226,7 +226,7 @@ const submitApprove = () => {
                     <div class="p-5 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-3 bg-zinc-50/50 dark:bg-zinc-900/50">
                         <span class="material-symbols-outlined text-zinc-500 dark:text-zinc-400">shopping_cart</span>
                         <div>
-                            <h2 class="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight">Detalle de Requisición</h2>
+                            <h2 class="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight">Detalle de Solicitud</h2>
                             <p class="text-[10px] text-zinc-400 uppercase tracking-widest font-black mt-0.5">Productos solicitados y costos proyectados</p>
                         </div>
                     </div>
@@ -395,7 +395,7 @@ const submitApprove = () => {
                                 <div class="text-xs">
                                     <p class="font-black text-rose-900 dark:text-rose-300 uppercase tracking-wide">Rechazada por Administración</p>
                                     <p class="text-rose-700/90 dark:text-rose-400/90 mt-1 leading-relaxed font-semibold">
-                                        Esta requisición fue desestimada y cancelada permanentemente.
+                                        Esta solicitud fue desestimada y cancelada permanentemente.
                                     </p>
                                 </div>
                             </div>

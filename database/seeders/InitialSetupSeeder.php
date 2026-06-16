@@ -65,26 +65,7 @@ class InitialSetupSeeder extends Seeder
             'name' => 'Super Administrador',
             'guard_name' => 'web',
         ]);
-
-        $managerRole = Role::firstOrCreate([
-            'name' => 'Gerente',
-            'guard_name' => 'web',
-        ]);
-
-        $sellerRole = Role::firstOrCreate([
-            'name' => 'Vendedor',
-            'guard_name' => 'web',
-        ]);
-
-        $managerPermissions = [
-            'manage-products', 'manage-clients',
-            'manage-providers', 'manage-purchases', 'manage-sales',
-            'manage-inventory', 'view-reports', 'create-sales', 'create-purchases',
-        ];
-        $managerRole->syncPermissions($managerPermissions);
-
-        $sellerPermissions = ['create-sales', 'pos-access'];
-        $sellerRole->syncPermissions($sellerPermissions);
+        $superAdminRole->syncPermissions(Permission::all());
 
         // 6. Create Super Admin User
         $superAdminUser = User::firstOrCreate(
@@ -140,8 +121,6 @@ class InitialSetupSeeder extends Seeder
                 'is_active' => true,
             ]
         );
-        
-        $warehouse->users()->syncWithoutDetaching([$superAdminUser->id]);
 
         // 10. Default Provider
         Provider::firstOrCreate(
@@ -155,5 +134,21 @@ class InitialSetupSeeder extends Seeder
                 'is_active' => true,
             ]
         );
+
+        // 11. Sincronizar todos los permisos al rol de Administrador
+        $adminRole = Role::where('name', 'Administrador')->first();
+        if ($adminRole) {
+            $adminRole->syncPermissions(Permission::all());
+        }
+
+        // 12. Configurar rol Almacén y asignarle permisos de productos e inventario
+        $warehouseRole = Role::firstOrCreate([
+            'name' => 'Almacén',
+            'guard_name' => 'web',
+        ]);
+        $warehouseRole->syncPermissions([
+            'manage-products',
+            'manage-inventory',
+        ]);
     }
 }

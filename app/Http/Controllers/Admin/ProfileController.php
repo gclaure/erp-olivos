@@ -34,7 +34,7 @@ class ProfileController extends Controller
                 'role' => $user->getRoleNames()->first() ?? __('Usuario'),
                 'created_at' => $user->created_at->translatedFormat('M Y'),
             ],
-            'company' => \App\Facades\Tenant::resolve(),
+            'company' => \App\Facades\CompanyFacade::getCompany(),
             'activeBranch' => \App\Facades\Branch::getActiveBranch(),
             'status' => session('status'),
         ]);

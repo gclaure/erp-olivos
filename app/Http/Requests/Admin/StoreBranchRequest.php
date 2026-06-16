@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
-use App\Facades\Tenant;
+use App\Facades\CompanyFacade;
 use App\Models\Branch;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -17,7 +17,7 @@ class StoreBranchRequest extends FormRequest
 
     public function rules(): array
     {
-        $companyId = Tenant::getActiveTenantId();
+        $companyId = CompanyFacade::getTenantId();
 
         return [
             'name' => 'required|string|max:100',

@@ -8,7 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreBranchRequest;
 use App\Http\Requests\Admin\UpdateBranchRequest;
 use App\Models\Branch;
-use App\Facades\Tenant;
+use App\Facades\CompanyFacade;
 use App\Services\BranchService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -40,7 +40,12 @@ class BranchController extends Controller
         Gate::authorize('manage-branches');
 
         $validated = $request->validated();
-        $company = Tenant::resolve();
+        $company = CompanyFacade::getCompany();
+        
+        if ($company === null) {
+            return back()->with('error', 'No se ha configurado ninguna compañía en el sistema.');
+        }
+
         $validated['company_id'] = $company->id;
 
         $service->createBranch($validated);

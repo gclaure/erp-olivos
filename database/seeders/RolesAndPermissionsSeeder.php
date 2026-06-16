@@ -42,20 +42,22 @@ class RolesAndPermissionsSeeder extends Seeder
 
         // Define Roles
         
-        // 1. Administrador (All permissions)
+        // 1. Administrador (All permissions synced)
         $adminRole = Role::firstOrCreate(['name' => 'Administrador', 'guard_name' => 'web']);
-        // Note: Admin gets all permissions via Gate::before in AppServiceProvider
+        $adminRole->syncPermissions(Permission::all());
         
-        // 2. Vendedor (Seller)
-        $sellerRole = Role::firstOrCreate(['name' => 'Vendedor', 'guard_name' => 'web']);
-        $sellerRole->syncPermissions([
-            'pos-access',
-            'manage-sales',
-            'manage-products',
-            'manage-clients',
-        ]);
-        
-        // 3. Super Admin
+        // 2. Super Admin
         Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'web']);
+
+        // 3. Almacén (Asignar permisos correspondientes)
+        $warehouseRole = Role::firstOrCreate(['name' => 'Almacén', 'guard_name' => 'web']);
+        $warehouseRole->syncPermissions([
+            'manage-products',
+            'manage-inventory',
+            'manage-categories',
+            'manage-warehouses',
+            'manage-providers',
+            'manage-purchases',
+        ]);
     }
 }

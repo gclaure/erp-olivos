@@ -37,13 +37,6 @@ return new class extends Migration
         $inventoryPermission = Permission::firstOrCreate(['name' => 'manage-inventory', 'guard_name' => 'web']);
         $purchasesPermission = Permission::firstOrCreate(['name' => 'manage-purchases', 'guard_name' => 'web']);
 
-        // 1. Cocina (Kitchen Role)
-        $kitchenRole = Role::firstOrCreate([
-            'name' => 'Cocina',
-            'guard_name' => 'web'
-        ]);
-        $kitchenRole->syncPermissions([$inventoryPermission]);
-
         // 2. Almacén (Warehouse/Store Role)
         $warehouseRole = Role::firstOrCreate([
             'name' => 'Almacén',

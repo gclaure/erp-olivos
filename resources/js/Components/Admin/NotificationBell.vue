@@ -1,6 +1,10 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { usePage, router, Link } from '@inertiajs/vue3';
+import {
+    solicitarPermisoNotificaciones,
+    mostrarNotificacionBrowser
+} from '@/composables/useNotificacionesBrowser.js';
 
 const page = usePage();
 const notifications = computed(() => page.props.notifications?.latest || []);
@@ -31,6 +35,7 @@ const getIcon = (type) => {
         case 'loss_warning': return 'bar_chart';
         case 'inventory_discrepancy': return 'settings';
         case 'transfer_discrepancy': return 'sync_alt';
+        case 'new_consumption_request': return 'assignment';
         default: return 'info';
     }
 };
@@ -43,6 +48,7 @@ const getTitle = (type) => {
         case 'loss_warning': return 'Alerta de Pérdida';
         case 'inventory_discrepancy': return 'Ajuste Stock';
         case 'transfer_discrepancy': return 'Mismatch Transferencia';
+        case 'new_consumption_request': return 'Solicitud de Consumo';
         default: return 'Notificación';
     }
 };
@@ -54,6 +60,7 @@ const getTitleClass = (type) => {
         case 'loss_warning': return 'text-purple-600 dark:text-purple-500 uppercase text-[10px]';
         case 'inventory_discrepancy': return 'text-orange-600 dark:text-orange-500 uppercase text-[10px]';
         case 'transfer_discrepancy': return 'text-red-600 dark:text-red-500 uppercase text-[10px]';
+        case 'new_consumption_request': return 'text-indigo-600 dark:text-indigo-500 uppercase text-[10px]';
         default: return '';
     }
 };
@@ -67,15 +74,30 @@ const getIconContainerClass = (type) => {
         case 'loss_warning': return base + 'bg-purple-50 dark:bg-purple-500/10 text-purple-500 border-purple-100 dark:border-purple-500/20 animate-bounce';
         case 'inventory_discrepancy': return base + 'bg-orange-50 dark:bg-orange-500/10 text-orange-500 border-orange-100 dark:border-orange-500/20';
         case 'transfer_discrepancy': return base + 'bg-red-50 dark:bg-red-500/10 text-red-500 border-red-100 dark:border-red-500/20 animate-pulse';
+        case 'new_consumption_request': return base + 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 border-indigo-100 dark:border-indigo-500/20';
         default: return base + 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 border-indigo-100 dark:border-indigo-500/20';
     }
 };
 
-onMounted(() => {
+onMounted(async () => {
+    // Solicitar permiso de notificaciones del navegador al montar el layout
+    await solicitarPermisoNotificaciones();
+
     if (window.Echo && page.props.auth?.user) {
         window.Echo.private(`notificaciones.${page.props.auth.user.id}`)
             .listen('.nueva.notificacion', (e) => {
                 router.reload({ only: ['notifications'] });
+
+                const urlDestino = e.tipo === 'new_consumption_request'
+                    ? route('admin.consumption-requests.index')
+                    : null;
+
+                mostrarNotificacionBrowser(
+                    '🔔 Nueva notificación',
+                    e.mensaje,
+                    urlDestino,
+                    true  // con sonido
+                );
             });
     }
 });

@@ -79,12 +79,7 @@ class SidebarService
                         'route' => 'admin.movements.index',
                         'permission' => 'manage-inventory',
                     ],
-                    [
-                        'label' => 'Transferencias',
-                        'icon' => 'truck',
-                        'route' => 'admin.transfers.index',
-                        'permission' => 'manage-transfers',
-                    ],
+
                     [
                         'label' => 'Registrar Consumo',
                         'icon' => 'computer-desktop',
@@ -209,6 +204,11 @@ class SidebarService
         $filtered = [];
 
         foreach ($items as $item) {
+            // Bloquear acceso del menú "Registrar Consumo" al rol Almacén
+            if (isset($item['route']) && $item['route'] === 'admin.consumption-requests.create' && $user->hasRole(['Almacén', 'almacen'])) {
+                continue;
+            }
+
             // Filtrar si es exclusivo de Super Admin o Administrador
             $isSuperAdmin = $user->is_super_admin;
             $isAdmin = $user->hasRole(['Admin', 'Administrador', 'admin', 'administrador']);
@@ -227,6 +227,14 @@ class SidebarService
                 if (count($item['children']) > 0) {
                     $filtered[] = $item;
                 }
+                continue;
+            }
+
+            // Permitir que el Consumidor visualice "Registrar Consumo" y "Consumos Solicitados" en el sidebar
+            if (isset($item['route']) && 
+                in_array($item['route'], ['admin.consumption-requests.create', 'admin.consumption-requests.index']) && 
+                $user->hasRole(['Consumidor', 'consumidor'])) {
+                $filtered[] = $item;
                 continue;
             }
 

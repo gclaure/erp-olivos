@@ -46,6 +46,12 @@ const roleForm = useForm({
     permissions: []
 });
 
+watch(() => roleForm.name, (newName) => {
+    if (newName && (newName.toLowerCase() === 'admin' || newName.toLowerCase() === 'administrador')) {
+        roleForm.permissions = props.allPermissions.map(p => p.name);
+    }
+});
+
 const openCreateRole = () => {
     editId.value = null;
     roleForm.reset();
@@ -56,7 +62,11 @@ const openCreateRole = () => {
 const openEditRole = (role) => {
     editId.value = role.id;
     roleForm.name = role.name;
-    roleForm.permissions = role.permissions.map(p => p.name);
+    if (role.name.toLowerCase() === 'admin' || role.name.toLowerCase() === 'administrador') {
+        roleForm.permissions = props.allPermissions.map(p => p.name);
+    } else {
+        roleForm.permissions = role.permissions.map(p => p.name);
+    }
     roleForm.clearErrors();
     showModal.value = true;
 };
@@ -234,7 +244,13 @@ const translatePermission = (name) => {
                                     </span>
                                 </td>
                                 <td class="px-6 py-4">
-                                    <div class="flex flex-wrap gap-1 max-w-md">
+                                    <div v-if="role.name.toLowerCase() === 'admin' || role.name.toLowerCase() === 'administrador'" class="flex flex-wrap gap-1">
+                                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase bg-gradient-to-r from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/20 dark:to-teal-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/30 shadow-sm">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                            Todos los Accesos
+                                        </span>
+                                    </div>
+                                    <div v-else class="flex flex-wrap gap-1 max-w-md">
                                         <span v-for="perm in role.permissions.slice(0, 4)" :key="perm.id"
                                               class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-gray-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-gray-500">
                                             {{ perm.label }}
@@ -300,7 +316,13 @@ const translatePermission = (name) => {
                     <div class="space-y-3">
                         <div class="flex justify-between items-start gap-4">
                             <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mt-1">Permisos</span>
-                            <div class="flex flex-wrap gap-1 justify-end max-w-[180px]">
+                            <div v-if="role.name.toLowerCase() === 'admin' || role.name.toLowerCase() === 'administrador'" class="flex justify-end">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-gradient-to-r from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/20 dark:to-teal-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/30">
+                                    <span class="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Todos los Accesos
+                                </span>
+                            </div>
+                            <div v-else class="flex flex-wrap gap-1 justify-end max-w-[180px]">
                                 <span v-for="perm in role.permissions.slice(0, 3)" :key="perm.id" class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-zinc-100 dark:bg-gray-700 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-gray-600">
                                     {{ perm.label }}
                                 </span>
@@ -462,12 +484,25 @@ const translatePermission = (name) => {
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Permisos</label>
+                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center justify-between">
+                            <span>Permisos</span>
+                            <span v-if="roleForm.name.toLowerCase() === 'admin' || roleForm.name.toLowerCase() === 'administrador'" class="text-xs text-emerald-600 dark:text-emerald-450 font-bold flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Acceso Total Permanente
+                            </span>
+                        </label>
+                        <div v-if="roleForm.name.toLowerCase() === 'admin' || roleForm.name.toLowerCase() === 'administrador'" class="mb-3 p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl flex items-start gap-2.5">
+                            <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[18px] mt-0.5">info</span>
+                            <div class="text-xs text-emerald-700 dark:text-emerald-350 leading-normal">
+                                El rol <strong class="font-bold">Administrador</strong> tiene otorgado por defecto el acceso total a todos los módulos y configuraciones del sistema. No es posible remover accesos a este rol.
+                            </div>
+                        </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-zinc-50 dark:bg-gray-700 rounded-xl border border-zinc-200 dark:border-gray-500 overflow-y-auto max-h-80">
                             <label v-for="perm in allPermissions" :key="perm.id" 
                                    class="flex items-start gap-3 p-3 rounded-xl hover:bg-white dark:hover:bg-gray-600 transition-all cursor-pointer group border border-transparent hover:border-zinc-200 dark:hover:border-gray-500">
                                 <input type="checkbox" v-model="roleForm.permissions" :value="perm.name" 
-                                       class="mt-1 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                                       :disabled="roleForm.name.toLowerCase() === 'admin' || roleForm.name.toLowerCase() === 'administrador'"
+                                       class="mt-1 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 disabled:opacity-50">
                                 <div class="flex flex-col gap-0.5">
                                     <span class="text-sm font-bold text-zinc-700 dark:text-zinc-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                                         {{ perm.label }}

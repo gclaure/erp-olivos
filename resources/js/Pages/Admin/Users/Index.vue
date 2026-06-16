@@ -43,15 +43,20 @@ const openEditModal = (user) => {
     showModal.value = true;
 };
 
-const confirmDelete = (user) => {
+const toggleStatus = (user) => {
+    const actionText = user.is_active ? 'desactivar' : 'activar';
+    const confirmButtonColor = user.is_active ? '#e11d48' : '#10b981'; // rose-600 vs emerald-600
+
     Swal.fire({
-        title: '¿Eliminar usuario?',
-        text: 'Esta acción no se puede deshacer.',
-        icon: 'warning',
+        title: `¿${actionText.charAt(0).toUpperCase() + actionText.slice(1)} colaborador?`,
+        text: user.is_active 
+            ? 'Este colaborador ya no podrá iniciar sesión en el sistema.' 
+            : 'Este colaborador podrá iniciar sesión en el sistema nuevamente.',
+        icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#e11d48', // rose-600
+        confirmButtonColor: confirmButtonColor,
         cancelButtonColor: '#52525b', // zinc-600
-        confirmButtonText: 'Sí, eliminar',
+        confirmButtonText: `Sí, ${actionText}`,
         cancelButtonText: 'Cancelar',
         reverseButtons: true,
         customClass: {
@@ -60,11 +65,11 @@ const confirmDelete = (user) => {
         }
     }).then((result) => {
         if (result.isConfirmed) {
-            router.delete(route('admin.users.destroy', user.id), {
+            router.patch(route('admin.users.toggle-status', user.id), {}, {
                 onSuccess: () => {
                     Swal.fire({
-                        title: 'Eliminado',
-                        text: 'Usuario eliminado correctamente.',
+                        title: user.is_active ? 'Desactivado' : 'Activado',
+                        text: `Colaborador ${user.is_active ? 'desactivado' : 'activado'} correctamente.`,
                         icon: 'success',
                         timer: 2000,
                         showConfirmButton: false,
@@ -137,6 +142,7 @@ const confirmDelete = (user) => {
                             <th class="px-6 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-300 uppercase tracking-wider">Email</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-300 uppercase tracking-wider">Sucursal</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-300 uppercase tracking-wider">Rol</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-300 uppercase tracking-wider">Estado</th>
                             <th class="px-6 py-3 text-center text-xs font-semibold text-zinc-500 dark:text-zinc-300 uppercase tracking-wider w-32">Acciones</th>
                         </tr>
                     </thead>
@@ -155,6 +161,9 @@ const confirmDelete = (user) => {
                                              {{ user.name }}
                                              <span v-if="user.is_super_admin" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 uppercase">Super Admin</span>
                                          </div>
+                                         <div v-if="user.area" class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+                                             Área: {{ user.area }}
+                                         </div>
                                      </div>
                                  </div>
                              </td>
@@ -169,6 +178,17 @@ const confirmDelete = (user) => {
                                     </span>
                                 </div>
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span :class="[
+                                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border transition-all',
+                                    user.is_active 
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/30' 
+                                        : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-450 dark:border-rose-900/30'
+                                ]">
+                                    <span class="w-1.5 h-1.5 rounded-full" :class="user.is_active ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'"></span>
+                                    {{ user.is_active ? 'Activo' : 'Inactivo' }}
+                                </span>
+                            </td>
                             <td class="px-6 py-4 text-center">
                                 <div class="flex items-center justify-center gap-2">
                                     <button 
@@ -182,13 +202,16 @@ const confirmDelete = (user) => {
                                     </button>
                                     <button 
                                         v-if="user.id !== $page.props.auth.user.id"
-                                        @click="confirmDelete(user)" 
-                                        class="p-2 text-zinc-400 dark:text-zinc-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-gray-700 rounded-lg transition-colors" 
-                                        title="Eliminar"
+                                        @click="toggleStatus(user)" 
+                                        :class="[
+                                            'p-2 rounded-lg transition-colors',
+                                            user.is_active 
+                                                ? 'text-zinc-400 dark:text-zinc-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-gray-700' 
+                                                : 'text-zinc-400 dark:text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-gray-700'
+                                        ]"
+                                        :title="user.is_active ? 'Desactivar' : 'Activar'"
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                        </svg>
+                                        <span class="material-symbols-outlined text-[20px]">{{ user.is_active ? 'person_off' : 'person' }}</span>
                                     </button>
                                 </div>
                             </td>
@@ -233,6 +256,10 @@ const confirmDelete = (user) => {
                             <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Sucursal</span>
                             <span class="text-xs font-bold text-zinc-900 dark:text-white">{{ user.branch?.name || 'N/A' }}</span>
                         </div>
+                        <div v-if="user.area" class="flex justify-between items-center">
+                            <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Área</span>
+                            <span class="text-xs font-bold text-zinc-900 dark:text-white">{{ user.area }}</span>
+                        </div>
                         <div class="flex justify-between items-start">
                             <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mt-1">Roles</span>
                             <div class="flex flex-wrap gap-1 justify-end max-w-[180px]">
@@ -240,6 +267,18 @@ const confirmDelete = (user) => {
                                     {{ role.name }}
                                 </span>
                             </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Estado</span>
+                            <span :class="[
+                                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all',
+                                user.is_active 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' 
+                                    : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30'
+                            ]">
+                                <span class="w-1 h-1 rounded-full" :class="user.is_active ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'"></span>
+                                {{ user.is_active ? 'Activo' : 'Inactivo' }}
+                            </span>
                         </div>
                     </div>
 
@@ -251,10 +290,15 @@ const confirmDelete = (user) => {
                             <span class="material-symbols-outlined text-lg">edit</span>
                         </button>
                         <button v-if="user.id !== $page.props.auth.user.id"
-                                @click="confirmDelete(user)" 
-                                class="w-10 h-10 flex items-center justify-center rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 active:scale-90 transition-all border border-rose-100 dark:border-rose-800/20" 
-                                title="Eliminar">
-                            <span class="material-symbols-outlined text-lg">delete</span>
+                                @click="toggleStatus(user)" 
+                                :class="[
+                                    'w-10 h-10 flex items-center justify-center rounded-full active:scale-90 transition-all border',
+                                    user.is_active 
+                                        ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800/20' 
+                                        : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/20'
+                                ]"
+                                :title="user.is_active ? 'Desactivar' : 'Activar'">
+                            <span class="material-symbols-outlined text-lg">{{ user.is_active ? 'person_off' : 'person' }}</span>
                         </button>
                     </div>
                 </div>
@@ -289,7 +333,6 @@ const confirmDelete = (user) => {
             :user="selectedUser"
             :roles="roles"
             :branches="branches"
-            :warehouses="warehouses"
             :all-points-of-sale="allPointsOfSale"
             @close="showModal = false"
         />

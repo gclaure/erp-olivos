@@ -33,6 +33,33 @@ class DashboardController extends Controller
         $user = Auth::user();
         
         $isAdmin = $user->is_super_admin || $user->hasRole(['Admin', 'admin', 'Administrador', 'administrador']);
+        $isConsumer = $user->hasRole(['Consumidor', 'consumidor']) && !$isAdmin;
+        $isWarehouse = $user->hasRole(['Almacén', 'almacen']) && !$isAdmin && !$isConsumer;
+
+        if ($isConsumer) {
+            return Inertia::render('Admin/ConsumerDashboard', [
+                'filters' => [
+                    'month' => $month,
+                    'year' => $year,
+                ],
+                'stats' => $this->getConsumerStats($user, $month, $year),
+                'salesChartData' => $this->getConsumerRequisitionsChartData($user, $year),
+                'topProducts' => $this->getConsumerTopProducts($user, $month, $year),
+                'categoryDistribution' => $this->getConsumerCategoryDistribution($user, $month, $year),
+                'recentRequests' => $this->getConsumerRecentRequests($user),
+            ]);
+        }
+
+        // Obtener los almacenes asignados para el rol de Almacén
+        $warehouseIds = null;
+        $assignedWarehouses = [];
+        if ($isWarehouse) {
+            $warehouseIds = $user->warehouses()->pluck('warehouses.id')->toArray();
+            if (empty($warehouseIds)) {
+                $warehouseIds = Warehouse::where('branch_id', $user->branch_id)->pluck('id')->toArray();
+            }
+            $assignedWarehouses = Warehouse::whereIn('id', $warehouseIds)->pluck('name')->toArray();
+        }
         
         return Inertia::render('Admin/Dashboard', [
             'filters' => [
@@ -40,21 +67,161 @@ class DashboardController extends Controller
                 'year' => $year,
                 'branch_id' => $isAdmin ? null : $user->branch_id,
             ],
-            'stats' => $this->getStats($user, $month, $year, $isAdmin),
+            'isWarehouse' => $isWarehouse,
+            'assignedWarehouses' => $assignedWarehouses,
+            'stats' => $this->getStats($user, $month, $year, $isAdmin, $warehouseIds),
             'planUsage' => $this->getPlanUsage(),
-            'salesChartData' => $this->getRequisitionsChartData($user, $year, $isAdmin),
-            'topProducts' => $this->getTopRequestedProducts($user, $month, $year, $isAdmin),
-            'categoryDistribution' => $this->getCategoryDistribution(),
-            'inventoryMovements' => $this->getInventoryMovements($month, $year),
-            'stockByWarehouse' => $this->getStockByWarehouse(),
-            'lowStockProducts' => $this->getLowStockProducts(),
+            'salesChartData' => $this->getRequisitionsChartData($user, $year, $isAdmin, $warehouseIds),
+            'topProducts' => $this->getTopRequestedProducts($user, $month, $year, $isAdmin, $warehouseIds),
+            'categoryDistribution' => $this->getCategoryDistribution($warehouseIds),
+            'inventoryMovements' => $this->getInventoryMovements($month, $year, $warehouseIds),
+            'stockByWarehouse' => $this->getStockByWarehouse($warehouseIds),
+            'lowStockProducts' => $this->getLowStockProducts($warehouseIds),
         ]);
     }
 
-    private function getStats(User $user, int $month, int $year, bool $isAdmin): array
+    private function getConsumerStats(User $user, int $month, int $year): array
+    {
+        $monthRequestsCount = ConsumptionRequest::query()
+            ->where('user_id', $user->id)
+            ->whereYear('date', $year)
+            ->whereMonth('date', $month)
+            ->count();
+
+        $pendingRequestsCount = ConsumptionRequest::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', ['pendiente', 'aprobado', 'despachado', 'despachado_parcial'])
+            ->count();
+
+        $observedRequestsCount = ConsumptionRequest::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'observado')
+            ->count();
+
+        $receivedRequestsCount = ConsumptionRequest::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'recibido')
+            ->whereYear('date', $year)
+            ->whereMonth('date', $month)
+            ->count();
+
+        return [
+            'month_requests' => $monthRequestsCount,
+            'pending_requests' => $pendingRequestsCount,
+            'observed_requests' => $observedRequestsCount,
+            'received_requests' => $receivedRequestsCount,
+        ];
+    }
+
+    private function getConsumerRequisitionsChartData(User $user, int $year): array
+    {
+        $requestsData = ConsumptionRequest::query()
+            ->where('user_id', $user->id)
+            ->whereYear('date', $year)
+            ->selectRaw('CAST(EXTRACT(MONTH FROM date) AS INTEGER) as month, COUNT(id) as total')
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->pluck('total', 'month')
+            ->all();
+
+        $data = [];
+        $labels = [];
+        
+        for ($i = 1; $i <= 12; $i++) {
+            $labels[] = Carbon::create($year, $i, 1)->translatedFormat('M');
+            $data[] = (float)($requestsData[$i] ?? 0);
+        }
+
+        return [
+            'labels' => $labels,
+            'datasets' => [[
+                'label' => "Mis Solicitudes de {$year}",
+                'data' => $data,
+                'borderColor' => '#4f46e5',
+                'backgroundColor' => 'rgba(79, 70, 229, 0.1)',
+                'fill' => true,
+                'tension' => 0.4
+            ]]
+        ];
+    }
+
+    private function getConsumerTopProducts(User $user, int $month, int $year): array
+    {
+        return ConsumptionRequestDetail::whereHas('consumptionRequest', function ($q) use ($user, $month, $year) {
+                $q->where('user_id', $user->id)
+                  ->whereYear('date', $year)
+                  ->whereMonth('date', $month);
+            })
+            ->selectRaw('product_id, SUM(quantity_requested) as total_qty')
+            ->with('product:id,name')
+            ->groupBy('product_id')
+            ->orderByDesc('total_qty')
+            ->limit(5)
+            ->get()
+            ->map(fn($detail) => [
+                'name' => $detail->product?->name ?? 'Desconocido',
+                'total' => (float)$detail->total_qty
+            ])
+            ->toArray();
+    }
+
+    private function getConsumerCategoryDistribution(User $user, int $month, int $year): array
+    {
+        $userRequestDetails = ConsumptionRequestDetail::whereHas('consumptionRequest', function($q) use ($user, $month, $year) {
+                $q->where('user_id', $user->id)
+                  ->whereYear('date', $year)
+                  ->whereMonth('date', $month);
+            })
+            ->with('product.categories')
+            ->get();
+
+        $categoriesCount = [];
+        foreach ($userRequestDetails as $detail) {
+            if ($detail->product) {
+                foreach ($detail->product->categories as $category) {
+                    if (!isset($categoriesCount[$category->name])) {
+                        $categoriesCount[$category->name] = 0;
+                    }
+                    $categoriesCount[$category->name] += (float)$detail->quantity_requested;
+                }
+            }
+        }
+
+        $categoryDistribution = [];
+        foreach ($categoriesCount as $name => $total) {
+            $categoryDistribution[] = [
+                'name' => $name,
+                'total' => $total,
+            ];
+        }
+
+        return $categoryDistribution;
+    }
+
+    private function getConsumerRecentRequests(User $user): array
+    {
+        return ConsumptionRequest::where('user_id', $user->id)
+            ->with('warehouse')
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(fn($r) => [
+                'id' => $r->id,
+                'number' => $r->number,
+                'formatted_number' => $r->formatted_number,
+                'date' => $r->date->format('Y-m-d'),
+                'warehouse_name' => $r->warehouse->name ?? 'N/A',
+                'status' => $r->status,
+            ])
+            ->toArray();
+    }
+
+    private function getStats(User $user, int $month, int $year, bool $isAdmin, ?array $warehouseIds = null): array
     {
         $requestsQuery = ConsumptionRequest::query()
             ->when($isAdmin, fn($q) => $q->withoutGlobalScope('branch_scoped'))
+            ->when($warehouseIds, fn($q) => $q->whereIn('warehouse_id', $warehouseIds))
             ->whereYear('date', $year)
             ->whereMonth('date', $month);
 
@@ -62,14 +229,18 @@ class DashboardController extends Controller
 
         $pendingRequestsCount = ConsumptionRequest::query()
             ->when($isAdmin, fn($q) => $q->withoutGlobalScope('branch_scoped'))
+            ->when($warehouseIds, fn($q) => $q->whereIn('warehouse_id', $warehouseIds))
             ->whereIn('status', ['pendiente', 'parcial'])
             ->count();
 
         $inventoryValue = Stock::join('products', 'stocks.product_id', '=', 'products.id')
+            ->when($warehouseIds, fn($q) => $q->whereIn('stocks.warehouse_id', $warehouseIds))
             ->selectRaw('SUM(stocks.quantity * products.price) as total_value')
             ->value('total_value') ?? 0;
 
-        $lowStockCount = Product::withSum('stocks as total_stock', 'quantity')
+        $lowStockCount = Product::withSum(['stocks as total_stock' => function ($q) use ($warehouseIds) {
+                $q->when($warehouseIds, fn($sq) => $sq->whereIn('warehouse_id', $warehouseIds));
+            }], 'quantity')
             ->select(['id', 'min_stock'])
             ->get()
             ->filter(fn($p) => $p->total_stock <= $p->min_stock)
@@ -82,6 +253,7 @@ class DashboardController extends Controller
 
         $todayRequestsCount = ConsumptionRequest::query()
             ->when($isAdmin, fn($q) => $q->withoutGlobalScope('branch_scoped'))
+            ->when($warehouseIds, fn($q) => $q->whereIn('warehouse_id', $warehouseIds))
             ->whereDate('date', now()->format('Y-m-d'))
             ->count();
 
@@ -93,7 +265,6 @@ class DashboardController extends Controller
             'total_products' => Product::count(),
             'purchase_orders_count' => $purchaseOrdersCount,
             'today_requests_count' => $todayRequestsCount,
-            // Retrocompatibilidad con nombres de variables anteriores en frontend
             'revenue' => (float)$monthRequestsCount, 
             'is_seller' => false,
             'seller_sales_count' => $purchaseOrdersCount,
@@ -127,10 +298,11 @@ class DashboardController extends Controller
         });
     }
 
-    private function getRequisitionsChartData(User $user, int $year, bool $isAdmin): array
+    private function getRequisitionsChartData(User $user, int $year, bool $isAdmin, ?array $warehouseIds = null): array
     {
         $requestsData = ConsumptionRequest::query()
             ->when($isAdmin, fn($q) => $q->withoutGlobalScope('branch_scoped'))
+            ->when($warehouseIds, fn($q) => $q->whereIn('warehouse_id', $warehouseIds))
             ->whereYear('date', $year)
             ->selectRaw('CAST(EXTRACT(MONTH FROM date) AS INTEGER) as month, COUNT(id) as total')
             ->groupBy('month')
@@ -150,7 +322,7 @@ class DashboardController extends Controller
         return [
             'labels' => $labels,
             'datasets' => [[
-                'label' => "Requisiciones de {$year}",
+                'label' => "Solicitudes de {$year}",
                 'data' => $data,
                 'borderColor' => '#4f46e5',
                 'backgroundColor' => 'rgba(79, 70, 229, 0.1)',
@@ -160,10 +332,11 @@ class DashboardController extends Controller
         ];
     }
 
-    private function getTopRequestedProducts(User $user, int $month, int $year, bool $isAdmin): array
+    private function getTopRequestedProducts(User $user, int $month, int $year, bool $isAdmin, ?array $warehouseIds = null): array
     {
-        return ConsumptionRequestDetail::whereHas('consumptionRequest', function ($q) use ($month, $year, $isAdmin) {
+        return ConsumptionRequestDetail::whereHas('consumptionRequest', function ($q) use ($month, $year, $isAdmin, $warehouseIds) {
                 $q->when($isAdmin, fn($sq) => $sq->withoutGlobalScope('branch_scoped'))
+                  ->when($warehouseIds, fn($sq) => $sq->whereIn('warehouse_id', $warehouseIds))
                   ->whereYear('date', $year)
                   ->whereMonth('date', $month);
             })
@@ -180,10 +353,10 @@ class DashboardController extends Controller
             ->toArray();
     }
 
-    private function getCategoryDistribution(): array
+    private function getCategoryDistribution(?array $warehouseIds = null): array
     {
-        return Category::with(['products.stocks' => function($q) {
-                $q->select('product_id', 'quantity');
+        return Category::with(['products.stocks' => function($q) use ($warehouseIds) {
+                $q->select('product_id', 'quantity')->when($warehouseIds, fn($sq) => $sq->whereIn('warehouse_id', $warehouseIds));
             }])
             ->get()
             ->map(function($category) {
@@ -198,20 +371,28 @@ class DashboardController extends Controller
             ->toArray();
     }
 
-    private function getInventoryMovements(int $month, int $year): array
+    private function getInventoryMovements(int $month, int $year, ?array $warehouseIds = null): array
     {
         $isAdmin = Auth::user()->hasRole(['Admin', 'admin', 'Administrador', 'administrador']);
         
         $entries = Kardex::query()
             ->when($isAdmin, fn($q) => $q->withoutGlobalScope('branch_scoped'))
-            ->whereIn('type', ['entrada', 'ENTRADA', 'compra', 'COMPRA', 'transferencia_entrada'])
+            ->when($warehouseIds, fn($q) => $q->whereIn('warehouse_id', $warehouseIds))
+            ->whereIn('type', [
+                'entrada', 'ENTRADA', 'compra', 'COMPRA', 'transferencia_entrada',
+                'PURCHASE', 'TRANSFER_IN', 'ADJUSTMENT_IN', 'INITIAL_LAYER'
+            ])
             ->whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
             ->sum('quantity');
             
         $exits = Kardex::query()
             ->when($isAdmin, fn($q) => $q->withoutGlobalScope('branch_scoped'))
-            ->whereIn('type', ['salida', 'SALIDA', 'venta', 'VENTA', 'transferencia_salida', 'anulacion', 'perdida'])
+            ->when($warehouseIds, fn($q) => $q->whereIn('warehouse_id', $warehouseIds))
+            ->whereIn('type', [
+                'salida', 'SALIDA', 'venta', 'VENTA', 'transferencia_salida', 'anulacion', 'perdida',
+                'SALE', 'TRANSFER_OUT', 'ADJUSTMENT_OUT', 'RETURN'
+            ])
             ->whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
             ->sum('quantity');
@@ -222,12 +403,13 @@ class DashboardController extends Controller
         ];
     }
 
-    private function getStockByWarehouse(): array
+    private function getStockByWarehouse(?array $warehouseIds = null): array
     {
         $isAdmin = Auth::user()->hasRole(['Admin', 'admin', 'Administrador', 'administrador']);
         
         return Warehouse::query()
             ->when($isAdmin, fn($q) => $q->withoutGlobalScope('branch_scoped'))
+            ->when($warehouseIds, fn($q) => $q->whereIn('id', $warehouseIds))
             ->withSum('stocks as total_stock', 'quantity')
             ->get()
             ->map(fn($w) => [
@@ -237,9 +419,11 @@ class DashboardController extends Controller
             ->toArray();
     }
 
-    private function getLowStockProducts(): array
+    private function getLowStockProducts(?array $warehouseIds = null): array
     {
-        return Product::withSum('stocks as total_stock', 'quantity')
+        return Product::withSum(['stocks as total_stock' => function ($q) use ($warehouseIds) {
+                $q->when($warehouseIds, fn($sq) => $sq->whereIn('warehouse_id', $warehouseIds));
+            }], 'quantity')
             ->select(['id', 'name', 'code', 'min_stock'])
             ->get()
             ->filter(fn($p) => $p->total_stock <= $p->min_stock)

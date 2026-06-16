@@ -24,7 +24,7 @@ const selectWarehouse = (warehouse) => {
 </script>
 
 <template>
-    <div class="w-full lg:w-[55%] flex flex-col h-[50vh] min-h-[500px] lg:h-full border-b lg:border-b-0 lg:border-r border-zinc-200 dark:border-secondary-700 bg-white dark:bg-secondary-900 transition-colors duration-300">
+    <div class="w-full lg:w-[55%] flex flex-col h-full lg:h-full border-b lg:border-b-0 lg:border-r border-zinc-200 dark:border-secondary-700 bg-white dark:bg-secondary-900 transition-colors duration-300">
         <!-- Buscador superior -->
         <div class="p-4 bg-[#f8f9fa] dark:bg-secondary-800/50 border-b border-zinc-200 dark:border-secondary-700 shadow-sm flex-shrink-0 flex items-center">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-zinc-500 dark:text-secondary-400 mr-3">

@@ -39,9 +39,12 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user() ? [
-                    'id' => $request->user()->id,
-                    'name' => $request->user()->name,
-                    'email' => $request->user()->email,
+                    'id'            => $request->user()->id,
+                    'name'          => $request->user()->name,
+                    'email'         => $request->user()->email,
+                    'is_super_admin'=> (bool)$request->user()->is_super_admin,
+                    'roles'         => $request->user()->roles->pluck('name')->toArray(),
+                    'area'          => $request->user()->area,
                 ] : null,
             ],
             'company_slug' => \App\Facades\CompanyFacade::getCompany()?->slug ?? \App\Models\Company::first()?->slug,

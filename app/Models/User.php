@@ -40,6 +40,8 @@ class User extends Authenticatable
         'password',
         'branch_id',
         'is_super_admin',
+        'area',
+        'is_active',
     ];
 
     /**
@@ -65,6 +67,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_super_admin' => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 

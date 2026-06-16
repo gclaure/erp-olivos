@@ -51,13 +51,13 @@ class ConsumptionRequestService
     /**
      * Despacha el stock físico disponible para una solicitud de consumo.
      */
-    public function dispatchRequest(ConsumptionRequest $consumptionRequest): ConsumptionRequest
+    public function dispatchRequest(ConsumptionRequest $consumptionRequest, array $dispatchQuantities = [], array $observations = []): ConsumptionRequest
     {
-        if (!in_array($consumptionRequest->status, ['aprobado', 'despachado_parcial'])) {
-            throw new Exception("Solo se pueden despachar solicitudes que estén aprobadas por el administrador o con despacho parcial.");
+        if (!in_array($consumptionRequest->status, ['pendiente', 'aprobado', 'despachado_parcial'])) {
+            throw new Exception("Solo se pueden despachar solicitudes en estado pendiente o con despacho parcial.");
         }
 
-        return DB::transaction(function () use ($consumptionRequest) {
+        return DB::transaction(function () use ($consumptionRequest, $dispatchQuantities, $observations) {
             $consumptionRequest->loadMissing('details.product');
             $warehouseId = $consumptionRequest->warehouse_id;
             $allDispatchedCompletely = true;
@@ -82,7 +82,36 @@ class ConsumptionRequestService
                 $availableStock = $stock ? (float) $stock->quantity : 0.0;
 
                 // Calcular cantidad a entregar en esta ronda
-                $dispatchQty = min($pendingQty, $availableStock);
+                if (isset($dispatchQuantities[$detail->id])) {
+                    $dispatchQty = (float) $dispatchQuantities[$detail->id];
+                } else {
+                    $dispatchQty = min($pendingQty, $availableStock);
+                }
+
+                if ($dispatchQty < 0) {
+                    throw new Exception("La cantidad a despachar para '{$detail->product?->name}' no puede ser negativa.");
+                }
+
+                // Si la cantidad a despachar supera lo pendiente o lo disponible en almacén, requiere observación
+                $exceedsPending = $dispatchQty > $pendingQty;
+                $exceedsStock = $dispatchQty > $availableStock;
+
+                if ($exceedsPending || $exceedsStock) {
+                    $obs = $observations[$detail->id] ?? null;
+                    if (empty(trim((string)$obs)) || strlen(trim((string)$obs)) < 3) {
+                        $msg = $exceedsStock 
+                            ? "Debe ingresar una observación/motivo de al menos 3 caracteres justificando el despacho para '{$detail->product?->name}' porque supera el stock disponible ({$availableStock})."
+                            : "Debe ingresar una observación/motivo de al menos 3 caracteres justificando el despacho para '{$detail->product?->name}' porque supera la cantidad pendiente ({$pendingQty}).";
+                        throw new Exception($msg);
+                    }
+                    $detail->observation = trim((string)$obs);
+                } else {
+                    // Si viene una observación opcional, la guardamos
+                    $obs = $observations[$detail->id] ?? null;
+                    if (!empty($obs)) {
+                        $detail->observation = trim((string)$obs);
+                    }
+                }
 
                 if ($dispatchQty > 0) {
 

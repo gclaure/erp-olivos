@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { Head, useForm, usePage, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Swal from 'sweetalert2';
@@ -46,6 +46,8 @@ const searchClients = () => {};
 const selectedClient = ref(null);
 const showConfirmModal = ref(false);
 const showClientModal = ref(false);
+const activeTab = ref('products'); // 'products' o 'cart'
+const cartCount = computed(() => items.value.length);
 const receiptType = ref(props.initialConfig.receiptType || 'media');
 
 const toggleReceiptType = () => {
@@ -92,16 +94,30 @@ watch(globalDiscount, (val) => { form.global_discount = val; });
 
 // Handlers
 const handleAddProduct = (product) => {
-    addItem(product);
+    // En modo consumo, enriquecer el producto con el almacén activo
+    // para permitir agregar el mismo producto de distintos almacenes
+    if (props.initialConfig?.operationType === 'consumption') {
+        const activeWarehouse = (props.warehouses || []).find(w => w.id === warehouseId.value);
+        addItem({
+            ...product,
+            warehouse_id: warehouseId.value,
+            warehouse_name: activeWarehouse?.name ?? props.initialConfig?.warehouseName ?? 'Almacén'
+        });
+    } else {
+        addItem(product);
+    }
 };
 
 const handleChangeWarehouse = (warehouse) => {
     setWarehouse(warehouse.id);
+    // En modo consumo conservar el carrito (preserveState: true)
+    // para poder agregar productos de distintos almacenes
+    const isConsumption = props.initialConfig?.operationType === 'consumption';
     router.post(route('admin.pos.update-context'), {
         warehouse_id: warehouse.id
     }, {
         preserveScroll: true,
-        preserveState: false,
+        preserveState: isConsumption,
     });
 };
 
@@ -163,13 +179,15 @@ const handleConfirmSale = (paymentData) => {
 };
 
 const handleSubmitConsumption = (consumptionData) => {
+    // Enviar cada ítem con su warehouse_id individual para permitir
+    // que el backend cree solicitudes separadas por almacén
     router.post(route('admin.consumption-requests.store'), {
-        warehouse_id: warehouseId.value,
         requested_by: consumptionData.requested_by,
         notes: consumptionData.notes,
         cart: items.value.map(item => ({
             id: item.id,
-            quantity: item.quantity
+            quantity: item.quantity,
+            warehouse_id: item.warehouse_id ?? warehouseId.value
         }))
     }, {
         onSuccess: (page) => {
@@ -209,10 +227,8 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Caja" />
-
-    <div class="flex flex-col lg:flex-row min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] bg-zinc-100 dark:bg-secondary-900 -m-4 lg:-m-6 lg:overflow-hidden">
-        <div class="flex flex-col lg:flex-row items-stretch w-full lg:h-full">
+    <Head title="Caja" />    <div class="flex flex-col lg:flex-row h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] bg-zinc-100 dark:bg-secondary-900 -m-4 lg:-m-6 overflow-hidden relative pb-16 lg:pb-0">
+        <div class="flex flex-col lg:flex-row items-stretch w-full h-full lg:h-full overflow-hidden">
             <!-- PANEL IZQUIERDO: CATÁLOGO DE PRODUCTOS (55%) -->
             <ProductCatalog 
                 v-model:searchQuery="productQuery"
@@ -226,6 +242,7 @@ onMounted(() => {
                 @page-change="searchProducts"
                 @add-to-cart="handleAddProduct"
                 @change-warehouse="handleChangeWarehouse"
+                :class="activeTab === 'products' ? 'flex' : 'hidden lg:flex'"
             />
 
             <!-- PANEL DERECHO: CARRITO Y ACCIONES (45%) -->
@@ -251,7 +268,42 @@ onMounted(() => {
                 :is-editing="!!initialQuotation"
                 :operation-type="initialConfig.operationType"
                 class="border-zinc-200 dark:border-secondary-700"
+                :class="activeTab === 'cart' ? 'flex' : 'hidden lg:flex'"
             />
+        </div>
+
+        <!-- BOTTOM NAVIGATION BAR (lg:hidden) -->
+        <div class="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white dark:bg-secondary-800 border-t border-zinc-200 dark:border-secondary-700 flex items-center justify-around z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] select-none">
+            <!-- Pestaña Productos -->
+            <button 
+                @click="activeTab = 'products'" 
+                type="button"
+                class="flex flex-col items-center justify-center gap-1 w-1/2 h-full text-[10px] font-black uppercase tracking-widest transition-all duration-200"
+                :class="activeTab === 'products' ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-secondary-400'"
+            >
+                <span class="material-symbols-outlined text-[22px]">grid_view</span>
+                <span>Productos</span>
+            </button>
+
+            <!-- Pestaña Carrito -->
+            <button 
+                @click="activeTab = 'cart'" 
+                type="button"
+                class="flex flex-col items-center justify-center gap-1 w-1/2 h-full text-[10px] font-black uppercase tracking-widest transition-all duration-200 relative"
+                :class="activeTab === 'cart' ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-secondary-400'"
+            >
+                <div class="relative">
+                    <span class="material-symbols-outlined text-[22px]">shopping_cart</span>
+                    <!-- Badge del total de artículos en el carrito -->
+                    <span 
+                        v-if="cartCount > 0" 
+                        class="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center animate-pulse"
+                    >
+                        {{ cartCount }}
+                    </span>
+                </div>
+                <span>Carrito</span>
+            </button>
         </div>
 
         <!-- MODAL DE CONFIRMACIÓN -->
@@ -276,7 +328,6 @@ onMounted(() => {
             @open-client-modal="showClientModal = true"
             @client-updated="v => selectedClient = v"
         />
-
 
         <!-- ClientModal removido ya que el módulo de clientes fue eliminado -->
     </div>

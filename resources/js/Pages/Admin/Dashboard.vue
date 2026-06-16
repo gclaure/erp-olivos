@@ -8,11 +8,14 @@ const props = defineProps({
     filters: Object,
     stats: Object,
     planUsage: Object,
-    salesChartData: Object, // Propiedad que contiene datos del gráfico anual de requisiciones
+    salesChartData: Object, // Propiedad que contiene datos del gráfico anual de solicitudes
     topProducts: Array, // Propiedad que contiene insumos más solicitados
     categoryDistribution: Array,
     inventoryMovements: Object,
     lowStockProducts: Array,
+    stockByWarehouse: Array,
+    isWarehouse: Boolean,
+    assignedWarehouses: Array,
 });
 
 const month = ref(props.filters.month);
@@ -218,7 +221,15 @@ const currentMonthName = computed(() => {
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
                 <h1 class="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">Panel de Control</h1>
-                <p class="text-zinc-500 dark:text-zinc-400 font-medium mt-1 uppercase text-[10px] tracking-widest">Gestión Logística y Abastecimiento de Cocinas</p>
+                <p class="text-zinc-500 dark:text-zinc-400 font-medium mt-1 uppercase text-[10px] tracking-widest">Gestión Logística y Abastecimiento de Áreas</p>
+                <div v-if="isWarehouse && assignedWarehouses && assignedWarehouses.length > 0" class="mt-2 flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[9px] font-black uppercase tracking-widest bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300 px-2 py-0.5 rounded-md border border-fuchsia-200/50 dark:border-fuchsia-900/30 shadow-sm">
+                        Encargado de Almacén
+                    </span>
+                    <span class="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold">
+                        Almacenes a su cargo: <span class="text-zinc-800 dark:text-zinc-200 font-extrabold">{{ assignedWarehouses.join(', ') }}</span>
+                    </span>
+                </div>
             </div>
             
             <div class="flex items-center gap-3 bg-surface p-2 rounded-xl border border-zinc-200 dark:border-gray-600 shadow-sm">
@@ -239,7 +250,7 @@ const currentMonthName = computed(() => {
 
         <!-- KPIs de Logística -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <!-- Total Requisiciones del Mes -->
+            <!-- Total Solicitudes del Mes -->
             <div class="bg-surface rounded-2xl border border-zinc-200 dark:border-gray-600 p-6 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
                 <div class="absolute -right-4 -top-4 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/30 rounded-full opacity-50 group-hover:scale-110 transition-transform"></div>
                 <div class="relative flex items-center gap-4">
@@ -248,7 +259,7 @@ const currentMonthName = computed(() => {
                     </div>
                     <div>
                         <div class="flex items-center gap-1">
-                            <p class="text-[10px] font-bold text-zinc-400 dark:text-zinc-300 uppercase tracking-widest">Requisiciones del Mes</p>
+                            <p class="text-[10px] font-bold text-zinc-400 dark:text-zinc-300 uppercase tracking-widest">Solicitudes del Mes</p>
                         </div>
                         <h3 class="text-2xl font-black text-zinc-900 dark:text-white mt-0.5">{{ formatInteger(stats.month_requests) }}</h3>
                         <p class="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1 italic">Solicitudes en {{ currentMonthName }} {{ year }}</p>
@@ -304,12 +315,12 @@ const currentMonthName = computed(() => {
 
         <!-- Sección de Gráficos Principales -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <!-- Tendencia de Requisiciones (Main) -->
+            <!-- Tendencia de Solicitudes (Main) -->
             <div class="lg:col-span-2 bg-surface rounded-2xl border border-zinc-200 dark:border-gray-600 p-6 shadow-sm">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="font-bold text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
                         <div class="w-2 h-2 rounded-full bg-indigo-500"></div>
-                        Tendencia de Requisiciones
+                        Tendencia de Solicitudes
                     </h3>
                     <span class="text-[10px] bg-zinc-100 dark:bg-gray-700 px-2 py-1 rounded-md font-bold text-zinc-500 dark:text-zinc-200">HISTORIAL ANUAL</span>
                 </div>
@@ -331,12 +342,12 @@ const currentMonthName = computed(() => {
                 
                 <div class="flex-1 flex flex-col gap-4 justify-center">
                     <div class="p-4 bg-zinc-50 dark:bg-gray-800 rounded-xl border border-zinc-100 dark:border-gray-700">
-                        <p class="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Requisiciones creadas Hoy</p>
+                        <p class="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Solicitudes creadas Hoy</p>
                         <h4 class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ formatInteger(stats.today_requests_count) }}</h4>
                     </div>
 
                     <div class="p-4 bg-zinc-50 dark:bg-gray-800 rounded-xl border border-zinc-100 dark:border-gray-700">
-                        <p class="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Requisiciones Pendientes (Almacén)</p>
+                        <p class="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Solicitudes Pendientes (Almacén)</p>
                         <h4 class="text-2xl font-black text-amber-600 dark:text-amber-500">{{ formatInteger(stats.pending_requests) }} <span class="text-xs font-bold text-zinc-400 uppercase">por despachar</span></h4>
                     </div>
 
@@ -355,7 +366,7 @@ const currentMonthName = computed(() => {
             <div class="bg-surface rounded-2xl border border-zinc-200 dark:border-gray-600 p-6 shadow-sm">
                 <h3 class="font-bold text-zinc-900 dark:text-white tracking-tight flex items-center gap-2 mb-2">
                     <div class="w-2 h-2 rounded-full bg-amber-500"></div>
-                    Insumos más Solicitados por Cocinas
+                    Insumos más Solicitados por las Áreas
                 </h3>
                 <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-6">Ranking de mayor volumen solicitado en el periodo actual.</p>
                 <div class="h-[250px]">

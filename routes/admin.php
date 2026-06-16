@@ -135,25 +135,25 @@ Route::get('movements/search-products', [MovementController::class, 'searchProdu
 Route::get('movements/{movement}', [MovementController::class, 'show'])->name('movements.show');
 Route::get('movements/{id}/print', \App\Http\Controllers\Admin\MovementPrintController::class)->name('movements.print');
 
-Route::controller(\App\Http\Controllers\Admin\TransferController::class)
-    ->prefix('transfers')
-    ->name('transfers.')
-    ->middleware('permission:manage-transfers')
-    ->group(function () {
-    Route::get('/', 'index')->name('index');
-    Route::get('/create', 'create')->name('create');
-    Route::post('/', 'store')->name('store');
-    Route::get('/{id}', 'show')->name('show');
-    Route::get('/{id}/edit', 'edit')->name('edit');
-    Route::put('/{id}', 'update')->name('update');
-    Route::post('/{id}/approve', 'approve')->name('approve');
-    Route::post('/{id}/reject', 'reject')->name('reject');
-    Route::post('/{id}/cancel', 'cancel')->name('cancel');
-    Route::post('/{id}/dispatch', 'dispatch')->name('dispatch');
-    Route::post('/{id}/receive', 'receive')->name('receive');
-    Route::post('/{id}/status', 'setStatus')->name('status');
-    Route::get('/api/search-products', 'searchProducts')->name('search-products');
-});
+// Route::controller(\App\Http\Controllers\Admin\TransferController::class)
+//     ->prefix('transfers')
+//     ->name('transfers.')
+//     ->middleware('permission:manage-transfers')
+//     ->group(function () {
+//     Route::get('/', 'index')->name('index');
+//     Route::get('/create', 'create')->name('create');
+//     Route::post('/', 'store')->name('store');
+//     Route::get('/{id}', 'show')->name('show');
+//     Route::get('/{id}/edit', 'edit')->name('edit');
+//     Route::put('/{id}', 'update')->name('update');
+//     Route::post('/{id}/approve', 'approve')->name('approve');
+//     Route::post('/{id}/reject', 'reject')->name('reject');
+//     Route::post('/{id}/cancel', 'cancel')->name('cancel');
+//     Route::post('/{id}/dispatch', 'dispatch')->name('dispatch');
+//     Route::post('/{id}/receive', 'receive')->name('receive');
+//     Route::post('/{id}/status', 'setStatus')->name('status');
+//     Route::get('/api/search-products', 'searchProducts')->name('search-products');
+// });
 Route::get('kardex', [KardexController::class, 'index'])->name('kardex.index');
 Route::get('kardex/export-pdf', [\App\Http\Controllers\Admin\KardexExportController::class, 'downloadPdf'])->name('kardex.export-pdf');
 Route::get('kardex/export-excel', [\App\Http\Controllers\Admin\KardexExportController::class, 'downloadExcel'])->name('kardex.export-excel');
@@ -176,6 +176,7 @@ Route::middleware('role:Admin|Administrador|admin|administrador|Super-admin|Supe
     Route::post('users', [\App\Http\Controllers\Admin\UserController::class, 'store'])->name('users.store');
     Route::put('users/{user}', [\App\Http\Controllers\Admin\UserController::class, 'update'])->name('users.update');
     Route::delete('users/{user}', [\App\Http\Controllers\Admin\UserController::class, 'destroy'])->name('users.destroy');
+    Route::patch('users/{user}/toggle-status', [\App\Http\Controllers\Admin\UserController::class, 'toggleStatus'])->name('users.toggle-status');
 
     // Gestión de Roles y Permisos
     Route::controller(\App\Http\Controllers\SuperAdmin\RoleController::class)->group(function () {

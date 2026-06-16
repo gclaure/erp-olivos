@@ -1,5 +1,6 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import Swal from 'sweetalert2';
 
 const props = defineProps({
@@ -34,24 +35,112 @@ const emit = defineEmits([
     'submit-consumption'
 ]);
 
+const page = usePage();
+const currentUser = computed(() => page.props.auth?.user);
+
 const paymentMethod = ref('efectivo');
 
 // Estado para Consumos Internos
-const requestedBy = ref('');
-const customRequestedBy = ref('');
 const notes = ref('');
+const isListening = ref(false);
+let recognition = null;
+let silenceTimer = null;
+let baseText = '';
 
-const getRequestedByValue = () => {
-    return requestedBy.value === 'Otro' ? customRequestedBy.value : requestedBy.value;
+const resetSilenceTimer = () => {
+    if (silenceTimer) {
+        clearTimeout(silenceTimer);
+    }
+    silenceTimer = setTimeout(() => {
+        if (recognition && isListening.value) {
+            recognition.stop();
+        }
+    }, 4000); // 4 segundos de inactividad
+};
+
+const initSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        return null;
+    }
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true; // Habilitar actualizaciones en tiempo real (palabra por palabra)
+    rec.lang = 'es-ES';
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+        isListening.value = true;
+        resetSilenceTimer();
+    };
+
+    rec.onerror = (e) => {
+        console.error('Speech recognition error', e);
+        isListening.value = false;
+        if (silenceTimer) clearTimeout(silenceTimer);
+        
+        if (e.error !== 'no-speech') {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de Dictado',
+                text: 'No se pudo acceder al micrófono o no se detectó voz.',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    };
+
+    rec.onend = () => {
+        isListening.value = false;
+        if (silenceTimer) clearTimeout(silenceTimer);
+    };
+
+    rec.onresult = (event) => {
+        resetSilenceTimer(); // Resetear temporizador ya que el usuario está hablando
+        
+        let sessionTranscript = '';
+        for (let i = 0; i < event.results.length; ++i) {
+            sessionTranscript += event.results[i][0].transcript;
+        }
+
+        const space = baseText ? ' ' : '';
+        notes.value = (baseText + space + sessionTranscript).toUpperCase();
+    };
+
+    return rec;
+};
+
+const toggleSpeechRecognition = () => {
+    if (!recognition) {
+        recognition = initSpeechRecognition();
+    }
+
+    if (!recognition) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'No Compatible',
+            text: 'El dictado por voz no es soportado por este navegador. Pruebe usando Chrome o Safari.',
+            timer: 3000,
+            showConfirmButton: false
+        });
+        return;
+    }
+
+    if (isListening.value) {
+        recognition.stop();
+    } else {
+        baseText = notes.value; // Guardar el texto existente
+        recognition.start();
+    }
 };
 
 const submitConsumption = () => {
-    const area = getRequestedByValue().trim();
+    const area = (currentUser.value?.area || '').trim();
     if (!area) {
         Swal.fire({
             icon: 'error',
-            title: 'Campo Requerido',
-            text: 'Por favor, seleccione o escriba el área solicitante.',
+            title: 'Perfil Incompleto',
+            text: 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Eventos) para realizar solicitudes.',
             customClass: {
                 confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded-lg font-bold'
             }
@@ -197,8 +286,15 @@ const formatDate = (dateStr) => {
                                 <span class="text-zinc-500 dark:text-secondary-400">{{ item.code }}</span> 
                                 <span v-if="item.unit">- {{ item.unit }}</span>
                             </p>
+                            <!-- Badge de Almacén de origen (solo en modo consumo) -->
+                            <div v-if="operationType === 'consumption' && item.warehouse_name" class="mt-1.5">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-full">
+                                    <span class="material-symbols-outlined text-[10px] text-emerald-600 dark:text-emerald-400">warehouse</span>
+                                    <span class="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">{{ item.warehouse_name }}</span>
+                                </span>
+                            </div>
                         </div>
-                        <button @click="$emit('remove-from-cart', item.id)" class="w-8 h-8 flex items-center justify-center rounded-full text-zinc-300 dark:text-secondary-600 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all">
+                        <button @click="$emit('remove-from-cart', item.id, item.warehouse_id)" class="w-8 h-8 flex items-center justify-center rounded-full text-zinc-300 dark:text-secondary-600 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                             </svg>
@@ -266,7 +362,7 @@ const formatDate = (dateStr) => {
                                     Cantidad Solicitada <span v-if="item.unit" class="text-indigo-500 dark:text-indigo-400">({{ item.unit }})</span>
                                 </span>
                                 <div class="flex items-center bg-zinc-100 dark:bg-secondary-900 rounded-xl p-1 w-fit border border-zinc-200/60 dark:border-secondary-700/60">
-                                    <button @click="$emit('update-quantity', item.id, Math.max(1, parseFloat(item.quantity) - 1))" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-secondary-800 shadow-sm text-zinc-600 dark:text-secondary-300 hover:text-rose-500 dark:hover:text-rose-400 transition-all">
+                                    <button @click="$emit('update-quantity', item.id, Math.max(1, parseFloat(item.quantity) - 1), item.warehouse_id)" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-secondary-800 shadow-sm text-zinc-600 dark:text-secondary-300 hover:text-rose-500 dark:hover:text-rose-400 transition-all">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
                                         </svg>
@@ -274,10 +370,10 @@ const formatDate = (dateStr) => {
                                     <input 
                                         type="text" 
                                         :value="item.quantity" 
-                                        @input="e => $emit('update-quantity', item.id, e.target.value)"
+                                        @input="e => $emit('update-quantity', item.id, e.target.value, item.warehouse_id)"
                                         class="w-12 bg-transparent border-none text-center text-sm font-black text-zinc-800 dark:text-secondary-100 focus:ring-0 p-0 uppercase"
                                     >
-                                    <button @click="$emit('update-quantity', item.id, parseFloat(item.quantity) + 1)" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-secondary-800 shadow-sm text-zinc-600 dark:text-secondary-300 hover:text-emerald-500 dark:hover:text-emerald-400 transition-all">
+                                    <button @click="$emit('update-quantity', item.id, parseFloat(item.quantity) + 1, item.warehouse_id)" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-secondary-800 shadow-sm text-zinc-600 dark:text-secondary-300 hover:text-emerald-500 dark:hover:text-emerald-400 transition-all">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                         </svg>
@@ -356,40 +452,42 @@ const formatDate = (dateStr) => {
         <div class="flex-shrink-0 bg-white dark:bg-secondary-800 border-t border-zinc-100 dark:border-secondary-700 transition-colors duration-300">
             <!-- Si es consumo interno -->
             <div v-if="operationType === 'consumption'" class="px-5 py-4 space-y-4">
-                <div>
-                    <label class="block text-[11px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider mb-2">Área Solicitante *</label>
-                    <div class="space-y-2">
-                        <select 
-                            v-model="requestedBy"
-                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-semibold text-zinc-700 dark:text-secondary-300 focus:border-blue-500 focus:ring-0 transition-all uppercase"
-                        >
-                            <option value="" disabled>Seleccione el área...</option>
-                            <option value="Cocina">Cocina</option>
-                            <option value="Pastelería">Pastelería</option>
-                            <option value="Producción">Producción</option>
-                            <option value="Almacén">Almacén</option>
-                            <option value="Administración">Administración</option>
-                            <option value="Otro">Otro (Especificar)</option>
-                        </select>
-                        
-                        <input 
-                            v-if="requestedBy === 'Otro'"
-                            v-model="customRequestedBy"
-                            type="text"
-                            placeholder="Escriba el nombre del área..."
-                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-semibold text-zinc-700 dark:text-secondary-300 focus:border-blue-500 focus:ring-0 transition-all uppercase"
-                        />
+                <div v-if="currentUser?.area">
+                    <div class="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl p-3.5 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-indigo-500 text-[20px]">corporate_fare</span>
+                            <div class="flex flex-col">
+                                <span class="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest leading-none mb-1">Área Solicitante</span>
+                                <span class="text-xs font-bold text-zinc-750 dark:text-zinc-300 uppercase leading-none">{{ currentUser.area }}</span>
+                            </div>
+                        </div>
+                        <span class="text-[9px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 rounded-full uppercase leading-none">Perfil</span>
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider mb-2">Notas / Observaciones</label>
-                    <textarea 
-                        v-model="notes"
-                        rows="2"
-                        placeholder="Notas adicionales para el almacenero..."
-                        class="w-full p-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-semibold text-zinc-700 dark:text-secondary-300 focus:border-blue-500 focus:ring-0 transition-all resize-none uppercase"
-                    ></textarea>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-[11px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Notas / Observaciones</label>
+                        <button 
+                            @click="toggleSpeechRecognition" 
+                            type="button"
+                            class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all duration-300 shadow-sm"
+                            :class="isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-zinc-200 hover:bg-zinc-300 dark:bg-secondary-700 dark:hover:bg-secondary-600 text-zinc-650 dark:text-secondary-300'"
+                        >
+                            <span class="material-symbols-outlined text-[14px]">
+                                {{ isListening ? 'mic' : 'mic_off' }}
+                            </span>
+                            {{ isListening ? 'Escuchando...' : 'Dictar' }}
+                        </button>
+                    </div>
+                    <div class="relative">
+                        <textarea 
+                            v-model="notes"
+                            rows="2"
+                            placeholder="Notas adicionales para el almacenero..."
+                            class="w-full p-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-semibold text-zinc-700 dark:text-secondary-300 focus:border-blue-500 focus:ring-0 transition-all resize-none uppercase"
+                        ></textarea>
+                    </div>
                 </div>
 
                 <button 

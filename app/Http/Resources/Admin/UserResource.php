@@ -31,6 +31,8 @@ class UserResource extends JsonResource
                 'id' => $role->id,
                 'name' => $role->name,
             ]),
+            'area' => $this->area,
+            'is_active' => (bool) $this->is_active,
             'point_of_sales' => [],
         ];
     }

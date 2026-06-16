@@ -13,9 +13,21 @@ class SuperAdminMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        $isAdmin = $user && $user->hasRole(['Admin', 'Administrador', 'admin', 'administrador']);
 
-        if (!$user || (!$user->is_super_admin && !$isAdmin)) {
+        if (!$user) {
+            abort(403, 'Acceso restringido a administradores.');
+        }
+
+        if (!$user->is_active) {
+            auth()->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            return redirect()->route('login')->with('error', 'Tu cuenta ha sido desactivada por el administrador.');
+        }
+
+        $isAdmin = $user->hasRole(['Admin', 'Administrador', 'admin', 'administrador']);
+
+        if (!$user->is_super_admin && !$isAdmin) {
             abort(403, 'Acceso restringido a administradores.');
         }
 

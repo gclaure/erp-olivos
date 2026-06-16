@@ -40,10 +40,10 @@ class UserController extends Controller
         return Inertia::render('Admin/Users/Index', [
             'users' => UserResource::collection($users),
             'filters' => $request->only(['search']),
-            'roles' => Role::whereNotIn('name', ['Super Admin', 'Super-admin'])
-                ->orderBy('name')
-                ->get()
-                ->map(fn($r) => ['label' => ucfirst($r->name), 'value' => $r->name]),
+            'roles' => Role::whereNotIn('name', ['Super Admin', 'Super-admin', 'Super Administrador', 'Super-administrador'])
+                 ->orderBy('name')
+                 ->get()
+                 ->map(fn($r) => ['label' => ucfirst($r->name), 'value' => $r->name]),
             'branches' => Branch::query()
                 ->when(auth()->user()?->is_super_admin, function($q) {
                     return $q->withoutGlobalScopes();
@@ -52,17 +52,6 @@ class UserController extends Controller
                 ->orderBy('name')
                 ->get(),
             'allPointsOfSale' => [],
-            'warehouses' => Warehouse::query()
-                ->where('is_active', true)
-                ->with(['branch' => fn($q) => $q->withoutGlobalScopes()])
-                ->orderBy('name')
-                ->get()
-                ->map(fn($w) => [
-                    'id' => $w->id,
-                    'name' => $w->name,
-                    'branch_id' => $w->branch_id,
-                    'branch_name' => $w->branch->name ?? 'N/A',
-                ]),
             'canCreateUser' => true,
         ]);
     }
@@ -76,9 +65,15 @@ class UserController extends Controller
             'name' => 'required|string|max:150',
             'email' => 'required|email|max:150|unique:users,email',
             'password' => 'required|string|min:8',
-            'role' => 'nullable|string',
+            'role' => 'required|string',
             'is_super_admin' => 'boolean',
-            'branch_id' => 'required_without:is_super_admin|nullable|exists:branches,id',
+            'branch_id' => 'required_unless:is_super_admin,true,1|nullable|exists:branches,id',
+            'area' => 'required_if:role,Consumidor,CONSUMIDOR,consumidor|nullable|string|in:Cocina,Pastelería,Eventos|max:150',
+        ], [
+            'role.required' => 'El rol administrativo es obligatorio.',
+            'branch_id.required' => 'La sucursal es obligatoria.',
+            'branch_id.required_unless' => 'La sucursal es obligatoria.',
+            'area.required_if' => 'El campo área es obligatorio cuando el rol es Consumidor.',
         ]);
 
         $data = [
@@ -87,6 +82,7 @@ class UserController extends Controller
             'password' => Hash::make($request->password),
             'is_super_admin' => $request->is_super_admin,
             'branch_id' => $request->is_super_admin ? null : $request->branch_id,
+            'area' => (isset($request->role) && strcasecmp($request->role, 'Consumidor') === 0) ? $request->area : null,
         ];
 
         // Security check for non-super admins
@@ -99,8 +95,6 @@ class UserController extends Controller
         if ($request->role) {
             $user->syncRoles([$request->role]);
         }
-
-
 
         return redirect()->route('admin.users.index')
             ->with('success', 'Usuario creado correctamente.');
@@ -115,9 +109,15 @@ class UserController extends Controller
             'name' => 'required|string|max:150',
             'email' => "required|email|max:150|unique:users,email,{$user->id}",
             'password' => 'nullable|string|min:8',
-            'role' => 'nullable|string',
+            'role' => 'required|string',
             'is_super_admin' => 'boolean',
-            'branch_id' => 'required_without:is_super_admin|nullable|exists:branches,id',
+            'branch_id' => 'required_unless:is_super_admin,true,1|nullable|exists:branches,id',
+            'area' => 'required_if:role,Consumidor,CONSUMIDOR,consumidor|nullable|string|in:Cocina,Pastelería,Eventos|max:150',
+        ], [
+            'role.required' => 'El rol administrativo es obligatorio.',
+            'branch_id.required' => 'La sucursal es obligatoria.',
+            'branch_id.required_unless' => 'La sucursal es obligatoria.',
+            'area.required_if' => 'El campo área es obligatorio cuando el rol es Consumidor.',
         ]);
 
         $data = [
@@ -125,6 +125,7 @@ class UserController extends Controller
             'email' => $request->email,
             'is_super_admin' => $request->is_super_admin,
             'branch_id' => $request->is_super_admin ? null : $request->branch_id,
+            'area' => (isset($request->role) && strcasecmp($request->role, 'Consumidor') === 0) ? $request->area : null,
         ];
 
         if (!auth()->user()?->is_super_admin && !$request->is_super_admin) {
@@ -141,8 +142,6 @@ class UserController extends Controller
             $user->syncRoles([$request->role]);
         }
 
-
-
         return redirect()->route('admin.users.index')
             ->with('success', 'Usuario actualizado correctamente.');
     }
@@ -153,12 +152,29 @@ class UserController extends Controller
     public function destroy(User $user): RedirectResponse
     {
         if ($user->id === auth()->id()) {
-            return back()->with('error', 'No puedes eliminar tu propia cuenta.');
+            return back()->with('error', 'No puedes desactivar tu propia cuenta.');
         }
 
-        $user->delete();
+        $user->update(['is_active' => false]);
 
         return redirect()->route('admin.users.index')
-            ->with('success', 'Usuario eliminado correctamente.');
+            ->with('success', 'Usuario desactivado correctamente.');
+    }
+
+    /**
+     * Alternar el estado activo/inactivo del colaborador.
+     */
+    public function toggleStatus(User $user): RedirectResponse
+    {
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'No puedes cambiar el estado de tu propia cuenta.');
+        }
+
+        $user->update(['is_active' => !$user->is_active]);
+
+        $statusMessage = $user->is_active ? 'Usuario activado correctamente.' : 'Usuario desactivado correctamente.';
+
+        return redirect()->route('admin.users.index')
+            ->with('success', $statusMessage);
     }
 }

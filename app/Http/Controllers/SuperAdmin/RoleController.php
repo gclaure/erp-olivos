@@ -47,7 +47,14 @@ class RoleController extends Controller
     {
         $roles = Role::query()
             ->with('permissions')
-            ->whereNotIn('name', ['Super Admin', 'Super-admin'])
+            ->whereNotIn('name', [
+                'Super Admin', 
+                'Super-admin', 
+                'Super Administrador', 
+                'super-admin', 
+                'super administrador', 
+                'Superadmin'
+            ])
             ->when($request->search, fn ($q) => $q->where('name', 'ilike', "%{$request->search}%"))
             ->orderBy('name')
             ->paginate(10)
@@ -103,7 +110,9 @@ class RoleController extends Controller
             'guard_name' => 'web',
         ]);
         
-        if (!empty($validated['permissions'])) {
+        if (in_array(strtolower($role->name), ['admin', 'administrador'])) {
+            $role->syncPermissions(Permission::all());
+        } else if (!empty($validated['permissions'])) {
             $role->syncPermissions($validated['permissions']);
         }
 
@@ -135,7 +144,11 @@ class RoleController extends Controller
             $role->update(['name' => $validated['name']]);
         }
 
-        $role->syncPermissions($validated['permissions'] ?? []);
+        if (in_array(strtolower($role->name), ['admin', 'administrador'])) {
+            $role->syncPermissions(Permission::all());
+        } else {
+            $role->syncPermissions($validated['permissions'] ?? []);
+        }
 
         return back()->with('success', 'Rol actualizado correctamente.');
     }

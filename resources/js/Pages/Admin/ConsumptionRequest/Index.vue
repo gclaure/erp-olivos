@@ -1,8 +1,25 @@
 <script setup>
-import { ref, watch, computed } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import debounce from 'lodash/debounce';
+import Swal from 'sweetalert2';
+import {
+    solicitarPermisoNotificaciones,
+    mostrarNotificacionBrowser,
+    actualizarBadgeTab,
+    actualizarFaviconBadge
+} from '@/composables/useNotificacionesBrowser.js';
+
+const page = usePage();
+const isWarehouseRole = computed(() => {
+    const roles = page.props.auth.user?.roles || [];
+    return roles.includes('Almacén') || roles.includes('almacen');
+});
+const isConsumidor = computed(() => {
+    const roles = page.props.auth.user?.roles || [];
+    return roles.includes('Consumidor') || roles.includes('consumidor');
+});
 
 const props = defineProps({
     requests: Object,
@@ -16,6 +33,88 @@ const status = ref(props.filters.status || '');
 const startDate = ref(props.filters.start_date || '');
 const endDate = ref(props.filters.end_date || '');
 const order = ref(props.filters.order || 'desc');
+
+const localRequests = ref(props.requests?.data || []);
+
+watch(() => props.requests, (newVal) => {
+    localRequests.value = newVal?.data || [];
+}, { deep: true });
+
+const activeBranchId = computed(() => page.props.activeBranch?.id);
+let currentSubscription = null;
+
+// Contador de nuevas solicitudes llegadas en tiempo real (para badge de pestaña)
+const nuevasSolicitudes = ref(0);
+
+const limpiarBadges = () => {
+    nuevasSolicitudes.value = 0;
+    actualizarBadgeTab(0);
+    actualizarFaviconBadge(0);
+};
+
+const subscribeToBranch = (branchId) => {
+    if (currentSubscription) {
+        window.Echo.leave(`sucursal.${currentSubscription}`);
+        currentSubscription = null;
+    }
+
+    if (window.Echo && branchId) {
+        currentSubscription = branchId;
+        window.Echo.private(`sucursal.${branchId}`)
+            .listen('.consumption-request.created', (e) => {
+                const exists = localRequests.value.some(r => r.id === e.request.id);
+                if (!exists) {
+                    localRequests.value.unshift(e.request);
+
+                    // Badge en pestaña y favicon
+                    nuevasSolicitudes.value++;
+                    actualizarBadgeTab(nuevasSolicitudes.value);
+                    actualizarFaviconBadge(nuevasSolicitudes.value);
+
+                    // Toast en pantalla
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'info',
+                        title: `Nueva solicitud de consumo #${e.request.formatted_number}`,
+                        text: `Solicitado por ${e.request.requested_by}`,
+                        showConfirmButton: false,
+                        timer: 4500,
+                        timerProgressBar: true
+                    });
+
+                    // Notificación nativa del sistema operativo con sonido
+                    mostrarNotificacionBrowser(
+                        `📋 Solicitud #${e.request.formatted_number}`,
+                        `Área: ${e.request.requested_by}`,
+                        route('admin.consumption-requests.index'),
+                        true
+                    );
+                }
+            });
+    }
+};
+
+watch(activeBranchId, (newBranchId) => {
+    subscribeToBranch(newBranchId);
+}, { immediate: true });
+
+// Solicitar permiso y limpiar badges cuando el usuario regresa a la pestaña
+onMounted(async () => {
+    await solicitarPermisoNotificaciones();
+
+    window.addEventListener('focus', limpiarBadges);
+    window.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') limpiarBadges();
+    });
+});
+
+onUnmounted(() => {
+    if (window.Echo && currentSubscription) {
+        window.Echo.leave(`sucursal.${currentSubscription}`);
+    }
+    window.removeEventListener('focus', limpiarBadges);
+});
 
 const getStatusBadgeClass = (statusVal) => {
     switch (statusVal) {
@@ -79,8 +178,8 @@ const selectedRequestIds = ref([]);
 
 // Filtrar las solicitudes que son aptas para consolidar (con faltantes y pendientes/parciales)
 const eligibleRequests = computed(() => {
-    if (!props.requests || !props.requests.data) return [];
-    return props.requests.data.filter(req => 
+    if (!localRequests.value) return [];
+    return localRequests.value.filter(req => 
         (req.status === 'pendiente' || req.status === 'parcial') && req.has_missing_stock
     );
 });
@@ -121,13 +220,13 @@ const handleConsolidatePurchases = () => {
                     Solicitudes de Consumo
                 </h1>
                 <p class="text-xs sm:text-sm text-zinc-500 dark:text-secondary-400 mt-1 uppercase font-bold tracking-tight">
-                    Gestión y control de requisiciones internas de insumos y materiales
+                    Gestión y control de solicitudes internas de insumos y materiales
                 </p>
             </div>
             
             <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <button 
-                    v-if="selectedRequestIds.length > 0"
+                    v-if="selectedRequestIds.length > 0 && !isConsumidor"
                     @click="handleConsolidatePurchases"
                     class="inline-flex items-center justify-center h-11 px-5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md hover:shadow-indigo-500/10 gap-2 w-full sm:w-auto"
                 >
@@ -138,6 +237,7 @@ const handleConsolidatePurchases = () => {
                 </button>
 
                 <Link 
+                    v-if="!isWarehouseRole"
                     :href="route('admin.consumption-requests.create')" 
                     class="inline-flex items-center justify-center h-11 px-5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md hover:shadow-blue-500/10 gap-2 w-full sm:w-auto"
                 >
@@ -239,7 +339,7 @@ const handleConsolidatePurchases = () => {
                 <table class="min-w-full divide-y divide-zinc-200 dark:divide-secondary-700">
                     <thead class="bg-zinc-50 dark:bg-secondary-900/50">
                         <tr>
-                            <th scope="col" class="w-12 px-6 py-4 text-center text-[10px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">
+                            <th v-if="!isConsumidor" scope="col" class="w-12 px-6 py-4 text-center text-[10px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">
                                 <input 
                                     v-if="eligibleRequests.length > 0"
                                     type="checkbox"
@@ -260,7 +360,7 @@ const handleConsolidatePurchases = () => {
                     </thead>
                     <tbody class="divide-y divide-zinc-100 dark:divide-secondary-700/50 bg-white dark:bg-secondary-800">
                         <tr 
-                            v-for="req in requests.data" 
+                            v-for="req in localRequests" 
                             :key="req.id"
                             :class="[
                                 selectedRequestIds.includes(req.id) ? 'bg-indigo-50/20 dark:bg-indigo-950/10' : '',
@@ -268,7 +368,7 @@ const handleConsolidatePurchases = () => {
                             ]"
                         >
                             <!-- Checkbox Selección -->
-                            <td class="px-6 py-4 text-center">
+                            <td v-if="!isConsumidor" class="px-6 py-4 text-center">
                                 <input 
                                     v-if="(req.status === 'pendiente' || req.status === 'parcial') && req.has_missing_stock"
                                     type="checkbox"
@@ -368,8 +468,8 @@ const handleConsolidatePurchases = () => {
                         </tr>
 
                         <!-- ESTADO VACÍO -->
-                        <tr v-if="requests.data.length === 0">
-                            <td colspan="8" class="px-6 py-12 text-center">
+                        <tr v-if="localRequests.length === 0">
+                            <td :colspan="isConsumidor ? 7 : 8" class="px-6 py-12 text-center">
                                 <div class="w-16 h-16 bg-slate-50 dark:bg-secondary-900 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-zinc-100 dark:border-secondary-700">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-slate-300 dark:text-secondary-700">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />

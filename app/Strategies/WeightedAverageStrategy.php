@@ -70,9 +70,10 @@ class WeightedAverageStrategy implements InventoryStrategy
             $oldQuantity = BigDecimal::of($stock->quantity);
             $oldTotalValue = BigDecimal::of($stock->inventory_value);
 
-            if ($oldQuantity->isLessThan($quantity)) {
-                throw new \RuntimeException("Stock insuficiente para realizar la salida (Ponderado).");
-            }
+            // Se permite stock negativo en salidas para soportar sobre-despachos temporales/operativos
+            // if ($oldQuantity->isLessThan($quantity)) {
+            //     throw new \RuntimeException("Stock insuficiente para realizar la salida (Ponderado).");
+            // }
 
             $newQuantity = $oldQuantity->minus($quantity);
             $newTotalValue = $oldTotalValue->minus($movementTotalCost);

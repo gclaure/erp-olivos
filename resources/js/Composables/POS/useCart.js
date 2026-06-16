@@ -57,8 +57,19 @@ export function useCart(initialFixedDiscount = false) {
         return Math.max(0, total + shipping);
     });
 
+    /**
+     * Agrega un producto al carrito.
+     * Si el producto trae warehouse_id, se distingue por id + warehouse_id,
+     * lo que permite el mismo producto de distintos almacenes en el carrito.
+     */
     const addItem = (product) => {
-        const existing = items.value.find(i => i.id === product.id);
+        const existing = items.value.find(i => {
+            if (product.warehouse_id) {
+                return i.id === product.id && i.warehouse_id === product.warehouse_id;
+            }
+            return i.id === product.id;
+        });
+
         if (existing) {
             existing.quantity++;
         } else {
@@ -71,22 +82,31 @@ export function useCart(initialFixedDiscount = false) {
         }
     };
 
-    const updateQuantity = (productId, quantity) => {
-        const item = items.value.find(i => i.id === productId);
+    const updateQuantity = (productId, quantity, warehouseId = null) => {
+        const item = items.value.find(i => {
+            if (warehouseId) return i.id === productId && i.warehouse_id === warehouseId;
+            return i.id === productId;
+        });
         if (item) {
             item.quantity = parseFloat(quantity || 0);
         }
     };
 
-    const updateDiscount = (productId, discount) => {
-        const item = items.value.find(i => i.id === productId);
+    const updateDiscount = (productId, discount, warehouseId = null) => {
+        const item = items.value.find(i => {
+            if (warehouseId) return i.id === productId && i.warehouse_id === warehouseId;
+            return i.id === productId;
+        });
         if (item) {
             item.discount = parseFloat(discount || 0);
         }
     };
 
-    const removeItem = (productId) => {
-        items.value = items.value.filter(i => i.id !== productId);
+    const removeItem = (productId, warehouseId = null) => {
+        items.value = items.value.filter(i => {
+            if (warehouseId) return !(i.id === productId && i.warehouse_id === warehouseId);
+            return i.id !== productId;
+        });
     };
 
     const loadQuotation = (quotation) => {

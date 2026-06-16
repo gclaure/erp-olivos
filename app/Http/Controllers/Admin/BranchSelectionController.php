@@ -9,7 +9,7 @@ use App\Facades\Branch;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rule;
-use App\Facades\Tenant;
+use App\Facades\CompanyFacade;
 
 class BranchSelectionController extends Controller
 {
@@ -21,7 +21,7 @@ class BranchSelectionController extends Controller
         $request->validate([
             'branch_id' => [
                 'required', 
-                Rule::exists('branches', 'id')->where('company_id', Tenant::getActiveTenantId())
+                Rule::exists('branches', 'id')->where('company_id', CompanyFacade::getTenantId())
             ],
         ]);
 

@@ -19,10 +19,10 @@ const hasStock = computed(() => availableQty.value > 0);
 
 <template>
     <div 
-        @click="(hasStock || operationType === 'consumption') ? $emit('add', product) : null"
+        @click="hasStock ? $emit('add', product) : null"
         :title="operationType === 'consumption' ? `${product.name}\nStock disponible: ${Math.floor(availableQty)}` : `${product.name}\nPrecio: ${parseFloat(product.price).toFixed(2)} Bs.\nStock disponible: ${Math.floor(availableQty)}`"
         class="relative rounded-xl sm:rounded-2xl overflow-hidden flex flex-col transition-all duration-300 group bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 cursor-pointer"
-        :class="{ 'opacity-60 cursor-not-allowed': !hasStock && operationType !== 'consumption' }"
+        :class="{ 'opacity-60 cursor-not-allowed': !hasStock }"
     >
         <!-- Imagen del producto -->
         <div class="aspect-[4/3] flex items-center justify-center p-2 sm:p-4 relative overflow-hidden transition-colors duration-300 bg-gradient-to-b from-zinc-50 via-white to-zinc-50 dark:from-secondary-900 dark:via-secondary-800 dark:to-secondary-900">
@@ -40,9 +40,9 @@ const hasStock = computed(() => availableQty.value > 0);
                 <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.125a3.375 3.375 0 0 1-3.375 3.375H7.75a3.375 3.375 0 0 1-3.375-3.375L3.75 7.5m16.5 0-1.25-2.25a3.375 3.375 0 0 0-3-1.5H8a3.375 3.375 0 0 0-3 1.5L3.75 7.5m16.5 0h-16.5" />
             </svg>
             
-            <!-- Overlay hover con botón + (solo productos con stock disponible, o cualquiera si es consumo interno) -->
+            <!-- Overlay hover con botón + (solo productos con stock disponible) -->
             <div 
-                v-if="hasStock || operationType === 'consumption'"
+                v-if="hasStock"
                 class="hidden lg:flex absolute inset-0 bg-secondary-900/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-all duration-300 items-center justify-center z-20"
             >
                 <div class="flex flex-col items-center gap-2 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 ease-out">

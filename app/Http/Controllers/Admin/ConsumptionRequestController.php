@@ -9,8 +9,11 @@ use App\Http\Requests\Admin\SaveConsumptionRequest;
 use App\Http\Resources\ConsumptionRequestResource;
 use App\Models\ConsumptionRequest;
 use App\Models\Warehouse;
+use App\Models\User;
 use App\Facades\Branch;
 use App\Services\ConsumptionRequestService;
+use App\Notifications\NuevaSolicitudConsumoNotification;
+use App\Events\NuevaNotificacion;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,9 +36,21 @@ class ConsumptionRequestController extends Controller
         $endDate = $request->get('end_date');
         $order = $request->get('order', 'desc');
 
+        $user = $request->user();
         $query = ConsumptionRequest::query()
-            ->with(['warehouse', 'user', 'details.product.stocks'])
+            ->with([
+                'warehouse', 
+                'user', 
+                'details.product.stocks',
+                'details.product.unitOfMeasure',
+                'details.product.categories'
+            ])
             ->orderBy('number', $order);
+
+        // Si es consumidor, solo ve sus propias solicitudes
+        if ($user && $user->hasRole(['Consumidor', 'consumidor']) && !$user->is_super_admin && !$user->hasRole(['Admin', 'admin', 'Administrador', 'administrador'])) {
+            $query->where('user_id', $user->id);
+        }
 
         // Aplicar filtros
         if ($search) {
@@ -81,6 +96,11 @@ class ConsumptionRequestController extends Controller
      */
     public function create(Request $request): Response
     {
+        $user = $request->user();
+        if ($user && $user->hasRole(['Almacén', 'almacen'])) {
+            abort(403, 'El personal de almacén no tiene permitido crear solicitudes de consumo.');
+        }
+
         $branchId = Branch::getActiveBranchId();
         
         $initialConfig = [
@@ -112,17 +132,92 @@ class ConsumptionRequestController extends Controller
 
     /**
      * Store a new consumption request.
+     * Agrupa los ítems del carrito por warehouse_id y crea una solicitud por cada almacén.
      */
     public function store(SaveConsumptionRequest $request): RedirectResponse
     {
+        $user = $request->user();
+        if ($user && $user->hasRole(['Almacén', 'almacen'])) {
+            abort(403, 'El personal de almacén no tiene permitido registrar solicitudes de consumo.');
+        }
+
         try {
             $data = $request->validated();
-            $consumptionRequest = $this->consumptionRequestService->createRequest($data, $data['cart']);
+
+            // Auto-asignar el área operativa del usuario autenticado
+            $requestedBy = $data['requested_by'] ?? ($user ? $user->area : null);
+
+            if (empty($requestedBy)) {
+                return redirect()->back()->withErrors([
+                    'error' => 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Eventos) para registrar consumos.'
+                ]);
+            }
+
+            // Agrupar los ítems del carrito por warehouse_id
+            $itemsByWarehouse = collect($data['cart'])->groupBy('warehouse_id');
+
+            $createdRequests = [];
+
+            foreach ($itemsByWarehouse as $warehouseId => $warehouseItems) {
+                $requestData = [
+                    'warehouse_id'  => $warehouseId,
+                    'requested_by'  => $requestedBy,
+                    'notes'         => $data['notes'] ?? null,
+                    'date'          => $data['date'] ?? now()->toDateString(),
+                ];
+
+                $consumptionRequest = $this->consumptionRequestService->createRequest(
+                    $requestData,
+                    $warehouseItems->toArray()
+                );
+
+                // Disparar evento de tiempo real (silencioso si Reverb no está activo)
+                try {
+                    event(new \App\Events\ConsumptionRequestCreated($consumptionRequest));
+                } catch (\Throwable) {
+                    // Reverb no disponible — no interrumpir el flujo
+                }
+
+                // Obtener usuarios con rol de Almacén pertenecientes a la misma sucursal
+                $almacenUsers = User::whereHas('roles', function ($q) {
+                    $q->whereIn('name', ['Almacén', 'almacen', 'Almacen', 'almacén']);
+                })
+                ->where('branch_id', $consumptionRequest->warehouse->branch_id)
+                ->where('is_active', true)
+                ->get();
+
+                // Registrar notificación persistente en BD + transmitir por socket
+                foreach ($almacenUsers as $almacenUser) {
+                    // La notificación de BD nunca falla por Reverb
+                    $almacenUser->notify(new NuevaSolicitudConsumoNotification($consumptionRequest));
+
+                    // El socket puede fallar silenciosamente si Reverb no está activo
+                    try {
+                        NuevaNotificacion::dispatch(
+                            (string)$almacenUser->id,
+                            "Se ha registrado la solicitud de consumo #{$consumptionRequest->formatted_number} por el área de {$consumptionRequest->requested_by}.",
+                            'new_consumption_request'
+                        );
+                    } catch (\Throwable) {
+                        // Reverb no disponible — la notificación de BD ya fue guardada
+                    }
+                }
+
+                $createdRequests[] = $consumptionRequest;
+            }
+
+            // Si solo se creó una solicitud, abrir PDF directamente
+            $firstRequest = $createdRequests[0];
+
+            $totalCreated = count($createdRequests);
+            $numbers = implode(', #', array_map(fn($r) => $r->number, $createdRequests));
 
             return redirect()->route('admin.consumption-requests.index')->with([
-                'success' => "Solicitud de consumo de {$consumptionRequest->requested_by} registrada exitosamente.",
+                'success' => $totalCreated === 1
+                    ? "Solicitud de consumo #{$firstRequest->number} de {$firstRequest->requested_by} registrada exitosamente."
+                    : "Se crearon {$totalCreated} solicitudes de consumo (#{$numbers}) de {$firstRequest->requested_by}, una por cada almacén.",
                 'success_data' => [
-                    'id' => $consumptionRequest->id,
+                    'id' => $firstRequest->id,
                 ],
             ]);
         } catch (Exception $e) {
@@ -147,10 +242,19 @@ class ConsumptionRequestController extends Controller
             'details.product.stocks' => function($q) use ($consumptionRequest) {
                 $q->where('warehouse_id', $consumptionRequest->warehouse_id);
             },
-            'details.product.unitOfMeasure'
+            'details.product.unitOfMeasure',
+            'details.product.categories'
         ]);
 
         $user = auth()->user();
+        
+        // Si es consumidor, validar que la solicitud sea suya
+        if ($user && $user->hasRole(['Consumidor', 'consumidor']) && !$user->is_super_admin && !$user->hasRole(['Admin', 'admin', 'Administrador', 'administrador'])) {
+            if ($consumptionRequest->user_id !== $user->id) {
+                abort(403, 'No tienes permiso para ver esta solicitud de consumo.');
+            }
+        }
+
         $isAdmin = $user ? ($user->hasRole(['Admin', 'admin', 'Administrador', 'administrador']) || $user->is_super_admin) : false;
 
         return Inertia::render('Admin/ConsumptionRequest/Show', [
@@ -162,11 +266,30 @@ class ConsumptionRequestController extends Controller
     /**
      * Dispatch the stock for a consumption request.
      */
-    public function dispatchRequest(ConsumptionRequest $consumptionRequest): RedirectResponse
+    public function dispatchRequest(Request $request, ConsumptionRequest $consumptionRequest): RedirectResponse
     {
+        $user = auth()->user();
+        $canDispatch = $user ? ($user->hasRole(['Admin', 'admin', 'Administrador', 'administrador', 'Almacén', 'almacen']) || $user->is_super_admin) : false;
+        if (!$canDispatch) {
+            return redirect()->back()->withErrors([
+                'error' => 'No tienes permiso para despachar esta solicitud de consumo.'
+            ]);
+        }
+
+        $request->validate([
+            'quantities' => 'required|array',
+            'quantities.*' => 'required|numeric|min:0',
+            'observations' => 'nullable|array',
+            'observations.*' => 'nullable|string',
+        ]);
+
         try {
             $consumptionRequest->load(['details.product']);
-            $updatedRequest = $this->consumptionRequestService->dispatchRequest($consumptionRequest);
+            $updatedRequest = $this->consumptionRequestService->dispatchRequest(
+                $consumptionRequest,
+                $request->input('quantities'),
+                $request->input('observations', [])
+            );
 
             $msg = $updatedRequest->status === 'entregado'
                 ? 'Todos los productos fueron despachados exitosamente.'

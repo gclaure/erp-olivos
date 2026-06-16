@@ -258,7 +258,7 @@ onUnmounted(() => {
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
             <div class="text-left">
                 <h1 class="text-2xl font-black text-zinc-900 dark:text-white leading-tight tracking-tight uppercase">Crear Solicitud de Compra</h1>
-                <p class="text-sm text-zinc-500 dark:text-secondary-400 mt-1">Registra una nueva requisición interna de compra para aprobación administrativa.</p>
+                <p class="text-sm text-zinc-500 dark:text-secondary-400 mt-1">Registra una nueva solicitud interna de compra para aprobación administrativa.</p>
             </div>
             <Link :href="route('admin.purchase-orders.index')" 
                   class="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-white dark:bg-secondary-800 text-zinc-600 dark:text-secondary-300 text-xs font-black uppercase tracking-widest rounded-2xl border border-zinc-200 dark:border-secondary-700 hover:bg-zinc-50 dark:hover:bg-secondary-700 transition-all shadow-sm active:scale-95">
