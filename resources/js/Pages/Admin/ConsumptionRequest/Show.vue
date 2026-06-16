@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Swal from 'sweetalert2';
@@ -35,7 +35,89 @@ const canUserDispatch = computed(() => {
     return hasRole && hasStatus;
 });
 
-const request = computed(() => props.consumptionRequest.data);
+const request = ref(props.consumptionRequest.data);
+
+watch(() => props.consumptionRequest.data, (newVal) => {
+    request.value = newVal;
+}, { deep: true });
+
+const getDetailedMessage = (requestObj) => {
+    const userName = requestObj.received_by_user?.name || 'Usuario';
+    const number = requestObj.formatted_number || 'S/N';
+    const requestedBy = requestObj.requested_by;
+
+    const discrepancies = [];
+    if (requestObj.details) {
+        requestObj.details.forEach(detail => {
+            const received = parseFloat(detail.quantity_received !== null ? detail.quantity_received : detail.quantity_delivered || 0);
+            const requested = parseFloat(detail.quantity_requested || 0);
+            const unitName = detail.unit_of_measure || '';
+
+            const diff = received - requested;
+            if (Math.abs(diff) >= 0.01) {
+                const productName = detail.product_name || 'Producto';
+                if (diff < 0) {
+                    discrepancies.push(`${productName} (Faltó: ${Math.abs(diff).toFixed(2)} ${unitName})`);
+                } else {
+                    discrepancies.push(`${productName} (Entregado de más: ${Math.abs(diff).toFixed(2)} ${unitName})`);
+                }
+            }
+        });
+    }
+
+    let msg = `El usuario ${userName} ha confirmado la recepción de la solicitud de consumo #${number} por el área de ${requestedBy}.`;
+    if (discrepancies.length > 0) {
+        msg += ` Con discrepancias: ${discrepancies.join(', ')}.`;
+    } else {
+        msg += ` Todo fue recibido conforme.`;
+    }
+    return msg;
+};
+
+
+const activeBranchId = computed(() => page.props.activeBranch?.id);
+let currentSubscription = null;
+
+const subscribeToBranch = (branchId) => {
+    if (currentSubscription) {
+        window.Echo.leave(`sucursal.${currentSubscription}`);
+        currentSubscription = null;
+    }
+
+    if (window.Echo && branchId) {
+        currentSubscription = branchId;
+        window.Echo.private(`sucursal.${branchId}`)
+            .listen('.consumption-request.updated', (e) => {
+                if (e.request.id === request.value.id) {
+                    request.value = e.request;
+                    
+                    if (isWarehouseRole.value && e.request.status === 'entregado') {
+                        const detailedMsg = getDetailedMessage(e.request);
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: `Recepción confirmada #${e.request.formatted_number}`,
+                            text: detailedMsg,
+                            showConfirmButton: false,
+                            timer: 6000,
+                            timerProgressBar: true
+                        });
+                    }
+                }
+            });
+    }
+};
+
+watch(activeBranchId, (newBranchId) => {
+    subscribeToBranch(newBranchId);
+}, { immediate: true });
+
+onUnmounted(() => {
+    if (window.Echo && currentSubscription) {
+        window.Echo.leave(`sucursal.${currentSubscription}`);
+    }
+});
 
 const receivedQuantities = ref({});
 const dispatchQuantities = ref({});

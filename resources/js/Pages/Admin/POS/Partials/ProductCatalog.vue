@@ -43,19 +43,19 @@ const selectWarehouse = (warehouse) => {
             </div>
 
             <!-- Informacion Operativa -->
-            <div class="ml-4 hidden lg:flex items-center gap-2">
+            <div class="ml-2 sm:ml-4 flex items-center gap-2 flex-shrink-0">
                 <!-- Selector de Almacén -->
                 <div class="relative">
                     <button
                         @click="showWarehouseDropdown = !showWarehouseDropdown"
-                        class="flex items-center gap-1.5 px-2 py-1 bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-lg shadow-sm hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all group cursor-pointer"
+                        class="flex items-center gap-1.5 px-2 py-1.5 bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-lg shadow-sm hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all group cursor-pointer"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 text-emerald-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
                         </svg>
-                        <span class="text-[10px] font-bold text-zinc-600 dark:text-secondary-300 uppercase">{{ warehouseName }}</span>
+                        <span class="text-[9px] sm:text-[10px] font-bold text-zinc-600 dark:text-secondary-300 uppercase max-w-[80px] sm:max-w-[120px] truncate">{{ warehouseName }}</span>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
-                            class="w-2.5 h-2.5 text-zinc-400 dark:text-secondary-500 transition-transform duration-200"
+                            class="w-2.5 h-2.5 text-zinc-400 dark:text-secondary-500 transition-transform duration-200 flex-shrink-0"
                             :class="showWarehouseDropdown ? 'rotate-180' : ''"
                         >
                             <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
@@ -73,7 +73,7 @@ const selectWarehouse = (warehouse) => {
                     >
                         <div
                             v-if="showWarehouseDropdown"
-                            class="absolute top-full left-0 mt-1.5 min-w-[180px] bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-xl shadow-lg z-50 py-1 overflow-hidden"
+                            class="absolute top-full right-0 mt-1.5 min-w-[180px] bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-xl shadow-lg z-50 py-1 overflow-hidden"
                         >
                             <p class="px-3 pt-2 pb-1 text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Seleccionar almacén</p>
                             <button

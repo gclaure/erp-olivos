@@ -71,6 +71,39 @@ const actualizarFaviconBadge = (count) => {
     img.onerror = dibujar;
 };
 // ─────────────────────────────────────────────────────────────────────────────
+const getDetailedMessage = (requestObj) => {
+    const userName = requestObj.received_by_user?.name || 'Usuario';
+    const number = requestObj.formatted_number || 'S/N';
+    const requestedBy = requestObj.requested_by;
+
+    const discrepancies = [];
+    if (requestObj.details) {
+        requestObj.details.forEach(detail => {
+            const received = parseFloat(detail.quantity_received !== null ? detail.quantity_received : detail.quantity_delivered || 0);
+            const requested = parseFloat(detail.quantity_requested || 0);
+            const unitName = detail.unit_of_measure || '';
+
+            const diff = received - requested;
+            if (Math.abs(diff) >= 0.01) {
+                const productName = detail.product_name || 'Producto';
+                if (diff < 0) {
+                    discrepancies.push(`${productName} (Faltó: ${Math.abs(diff).toFixed(2)} ${unitName})`);
+                } else {
+                    discrepancies.push(`${productName} (Entregado de más: ${Math.abs(diff).toFixed(2)} ${unitName})`);
+                }
+            }
+        });
+    }
+
+    let msg = `El usuario ${userName} ha confirmado la recepción de la solicitud de consumo #${number} por el área de ${requestedBy}.`;
+    if (discrepancies.length > 0) {
+        msg += ` Con discrepancias: ${discrepancies.join(', ')}.`;
+    } else {
+        msg += ` Todo fue recibido conforme.`;
+    }
+    return msg;
+};
+
 
 const page = usePage();
 const isWarehouseRole = computed(() => {
@@ -151,6 +184,70 @@ const subscribeToBranch = (branchId) => {
                         route('admin.consumption-requests.index'),
                         true
                     );
+                }
+            })
+            .listen('.consumption-request.updated', (e) => {
+                const index = localRequests.value.findIndex(r => r.id === e.request.id);
+                if (index !== -1) {
+                    localRequests.value[index] = e.request;
+
+                    // Badge en pestaña, favicon y toast si el usuario actual es consumidor/dueño de la solicitud
+                    const currentUser = page.props.auth.user;
+                    const esDueno = currentUser && (currentUser.id === e.request.user_id || currentUser.area === e.request.requested_by);
+                    
+                    if (esDueno && isConsumidor.value) {
+                        // Incrementar contador de nuevas alertas en pestaña
+                        nuevasSolicitudes.value++;
+                        actualizarBadgeTab(nuevasSolicitudes.value);
+                        actualizarFaviconBadge(nuevasSolicitudes.value);
+
+                        // Toast en pantalla
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: `Solicitud #${e.request.formatted_number} despachada`,
+                            text: `Estado: ${getStatusLabel(e.request.status).toUpperCase()}`,
+                            showConfirmButton: false,
+                            timer: 4500,
+                            timerProgressBar: true
+                        });
+
+                        // Notificación nativa del navegador con sonido
+                        mostrarNotificacionBrowser(
+                            `📦 Solicitud #${e.request.formatted_number} Actualizada`,
+                            `Estado: ${getStatusLabel(e.request.status).toUpperCase()}`,
+                            route('admin.consumption-requests.index'),
+                            true
+                        );
+                    } else if (isWarehouseRole.value && e.request.status === 'entregado') {
+                        // Almacén: cuando se confirma recepción
+                        nuevasSolicitudes.value++;
+                        actualizarBadgeTab(nuevasSolicitudes.value);
+                        actualizarFaviconBadge(nuevasSolicitudes.value);
+
+                        const detailedMsg = getDetailedMessage(e.request);
+
+                        // Toast en pantalla
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: `Recepción confirmada #${e.request.formatted_number}`,
+                            text: detailedMsg,
+                            showConfirmButton: false,
+                            timer: 6000,
+                            timerProgressBar: true
+                        });
+
+                        // Notificación nativa del navegador con sonido
+                        mostrarNotificacionBrowser(
+                            `✅ Recepción Confirmada #${e.request.formatted_number}`,
+                            detailedMsg,
+                            route('admin.consumption-requests.index'),
+                            true
+                        );
+                    }
                 }
             });
     }
@@ -396,7 +493,8 @@ const handleConsolidatePurchases = () => {
 
         <!-- LISTADO -->
         <div class="bg-white dark:bg-secondary-800 rounded-2xl border border-zinc-200/60 dark:border-secondary-700 shadow-sm overflow-hidden transition-all duration-300">
-            <div class="overflow-x-auto">
+            <!-- Vista de Escritorio (Tabla tradicional) -->
+            <div class="hidden md:block overflow-x-auto">
                 <table class="min-w-full divide-y divide-zinc-200 dark:divide-secondary-700">
                     <thead class="bg-zinc-50 dark:bg-secondary-900/50">
                         <tr>
@@ -544,6 +642,128 @@ const handleConsolidatePurchases = () => {
                 </table>
             </div>
 
+            <!-- Vista Móvil (Cards responsivas estilo premium) -->
+            <div class="block md:hidden divide-y divide-zinc-100 dark:divide-secondary-700/50">
+                <div 
+                    v-for="req in localRequests" 
+                    :key="req.id"
+                    :class="[
+                        selectedRequestIds.includes(req.id) ? 'bg-indigo-50/20 dark:bg-indigo-950/10' : '',
+                        'p-5 space-y-4 hover:bg-zinc-50/30 dark:hover:bg-secondary-700/5 transition-colors'
+                    ]"
+                >
+                    <!-- Cabecera de la Card: Código y Estado -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <!-- Checkbox Selección -->
+                            <input 
+                                v-if="!isConsumidor && (req.status === 'pendiente' || req.status === 'parcial') && req.has_missing_stock"
+                                type="checkbox"
+                                v-model="selectedRequestIds"
+                                :value="req.id"
+                                class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-secondary-700 dark:bg-secondary-900 w-4.5 h-4.5 cursor-pointer"
+                            />
+                            <span class="text-xs font-black text-indigo-600 dark:text-indigo-400 tracking-wider uppercase">
+                                #{{ req.formatted_number || 'S/N' }}
+                            </span>
+                        </div>
+                        
+                        <!-- Estado -->
+                        <div class="flex items-center gap-1.5">
+                            <span 
+                                v-if="req.status === 'entregado'"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-emerald-600 text-white shadow-md shadow-emerald-500/20 dark:bg-emerald-500"
+                            >
+                                COMPLETADA
+                            </span>
+                            <span 
+                                v-else
+                                :class="['inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider', getStatusBadgeClass(req.status)]"
+                            >
+                                {{ getStatusLabel(req.status) }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Fecha -->
+                    <div>
+                        <p class="text-xs font-black text-zinc-850 dark:text-secondary-100 uppercase tracking-tight">
+                            {{ req.date_formatted }}
+                        </p>
+                    </div>
+
+                    <!-- Detalles Clave-Valor -->
+                    <div class="space-y-2.5 text-xs pt-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">ÁREA</span>
+                            <span class="font-bold text-zinc-800 dark:text-secondary-200 uppercase tracking-tight">
+                                {{ req.requested_by }}
+                            </span>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">ALMACÉN</span>
+                            <span class="font-bold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight">
+                                {{ req.warehouse_name }}
+                            </span>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">SOLICITANTE</span>
+                            <span class="font-bold text-zinc-750 dark:text-secondary-350 uppercase tracking-tight">
+                                {{ req.user_name }}
+                            </span>
+                        </div>
+
+                        <div v-if="(req.status === 'pendiente' || req.status === 'parcial') && req.has_missing_stock" class="flex items-center justify-between">
+                            <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">STOCK</span>
+                            <span 
+                                class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-full ring-1 ring-amber-500/30"
+                            >
+                                Falta Stock
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Acciones -->
+                    <div class="flex justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-secondary-700/50">
+                        <!-- Ver Detalle -->
+                        <Link 
+                            :href="route('admin.consumption-requests.show', { consumption_request: req.id })"
+                            class="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-colors shadow-sm"
+                            title="Ver Detalle"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            </svg>
+                        </Link>
+
+                        <!-- Imprimir PDF -->
+                        <a 
+                            :href="route('admin.consumption-requests.print', { consumption_request: req.id })"
+                            target="_blank"
+                            class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center transition-colors shadow-sm"
+                            title="Imprimir PDF"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0a2.25 2.25 0 0 1-2.24 2.156H8.58A2.25 2.25 0 0 1 6.34 18m11.32 0h-11.32m11.32 0a2.25 2.25 0 0 0 2.25-2.25V9A2.25 2.25 0 0 0 15 6.75h-2.25V4.5a2.25 2.25 0 0 0-2.25-2.25h-3a2.25 2.25 0 0 0-2.25 2.25v2.25H3A2.25 2.25 0 0 0 .75 9v6.75a2.25 2.25 0 0 0 2.25 2.25h1.36m3.93 0h3.14m1.36 0h1.36M6.75 22.5h10.5" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Estado Vacío en Móvil -->
+                <div v-if="localRequests.length === 0" class="p-8 text-center bg-zinc-50/50 dark:bg-secondary-900/10">
+                    <div class="w-12 h-12 bg-slate-50 dark:bg-secondary-900 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-zinc-100 dark:border-secondary-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-slate-300 dark:text-secondary-700">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        </svg>
+                    </div>
+                    <p class="text-xs font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-tight">No se encontraron solicitudes</p>
+                </div>
+            </div>
+
             <!-- PAGINACIÓN -->
             <div 
                 v-if="requests.meta && requests.meta.last_page > 1"
@@ -556,14 +776,14 @@ const handleConsolidatePurchases = () => {
                     <Link 
                         v-if="requests.links.prev"
                         :href="requests.links.prev"
-                        class="px-3 py-1.5 bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-lg text-[10px] font-black uppercase text-zinc-700 dark:text-secondary-300 hover:bg-zinc-50 dark:hover:bg-secondary-700/50 transition-colors"
+                        class="px-3 py-1.5 bg-white dark:bg-secondary-800 border border-zinc-200/60 dark:border-secondary-700 rounded-lg text-[10px] font-black uppercase text-zinc-700 dark:text-secondary-300 hover:bg-zinc-50 dark:hover:bg-secondary-700/50 transition-colors"
                     >
                         Anterior
                     </Link>
                     <Link 
                         v-if="requests.links.next"
                         :href="requests.links.next"
-                        class="px-3 py-1.5 bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-lg text-[10px] font-black uppercase text-zinc-700 dark:text-secondary-300 hover:bg-zinc-50 dark:hover:bg-secondary-700/50 transition-colors"
+                        class="px-3 py-1.5 bg-white dark:bg-secondary-800 border border-zinc-200/60 dark:border-secondary-700 rounded-lg text-[10px] font-black uppercase text-zinc-700 dark:text-secondary-300 hover:bg-zinc-50 dark:hover:bg-secondary-700/50 transition-colors"
                     >
                         Siguiente
                     </Link>

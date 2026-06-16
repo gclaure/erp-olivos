@@ -291,6 +291,37 @@ class ConsumptionRequestController extends Controller
                 $request->input('observations', [])
             );
 
+            // Obtener usuarios consumidores de la misma área de la solicitud de consumo
+            $consumidores = \App\Models\User::whereHas('roles', function ($q) {
+                $q->whereIn('name', ['Consumidor', 'consumidor']);
+            })
+            ->where('area', $updatedRequest->requested_by)
+            ->where('is_active', true)
+            ->get();
+
+            // Enviar notificación a cada consumidor de esa área
+            foreach ($consumidores as $consumidor) {
+                $consumidor->notify(new \App\Notifications\SolicitudConsumoDespachadaNotification($updatedRequest));
+
+                // Socket privado del consumidor para notificación browser / sonido / campana
+                try {
+                    \App\Events\NuevaNotificacion::dispatch(
+                        (string)$consumidor->id,
+                        "Tu solicitud de consumo #{$updatedRequest->formatted_number} del área de {$updatedRequest->requested_by} ha sido despachada por almacén.",
+                        'consumption_request_dispatched'
+                    );
+                } catch (\Throwable) {
+                    // Reverb no disponible — no interrumpir el flujo
+                }
+            }
+
+            // Socket global de sucursal para actualizar la tabla del listado reactivamente
+            try {
+                event(new \App\Events\ConsumptionRequestUpdated($updatedRequest));
+            } catch (\Throwable) {
+                // Reverb no disponible — no interrumpir el flujo
+            }
+
             $msg = $updatedRequest->status === 'entregado'
                 ? 'Todos los productos fueron despachados exitosamente.'
                 : 'Se realizó un despacho parcial del stock disponible. Los productos restantes siguen pendientes.';
@@ -350,7 +381,46 @@ class ConsumptionRequestController extends Controller
         try {
             $receivedQuantities = $request->input('received_quantities', []);
             $observations = $request->input('observations', []);
-            $this->consumptionRequestService->receiveRequest($consumptionRequest, $receivedQuantities, $observations);
+            
+            $updatedRequest = $this->consumptionRequestService->receiveRequest($consumptionRequest, $receivedQuantities, $observations);
+
+            // Cargar relaciones necesarias
+            $updatedRequest->loadMissing(['warehouse', 'receivedByUser', 'details.product.unitOfMeasure']);
+
+            // Crear la instancia de la notificación
+            $notification = new \App\Notifications\SolicitudConsumoRecepcionadaNotification($updatedRequest);
+            $message = $notification->getMessage();
+
+            // Obtener usuarios con rol de Almacén pertenecientes a la misma sucursal
+            $almacenUsers = User::whereHas('roles', function ($q) {
+                $q->whereIn('name', ['Almacén', 'almacen', 'Almacen', 'almacén']);
+            })
+            ->where('branch_id', $updatedRequest->warehouse->branch_id)
+            ->where('is_active', true)
+            ->get();
+
+            // Registrar notificación persistente en BD + transmitir por socket
+            foreach ($almacenUsers as $almacenUser) {
+                $almacenUser->notify($notification);
+
+                try {
+                    \App\Events\NuevaNotificacion::dispatch(
+                        (string)$almacenUser->id,
+                        $message,
+                        'consumption_request_received'
+                    );
+                } catch (\Throwable) {
+                    // Reverb no disponible
+                }
+            }
+
+            // Socket global de sucursal para actualizar la tabla del listado reactivamente
+            try {
+                event(new \App\Events\ConsumptionRequestUpdated($updatedRequest));
+            } catch (\Throwable) {
+                // Reverb no disponible
+            }
+
             return redirect()->back()->with('success', 'Recepción confirmada correctamente. El ciclo ha finalizado.');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([

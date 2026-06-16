@@ -69,6 +69,8 @@ const getIcon = (type) => {
         case 'inventory_discrepancy': return 'settings';
         case 'transfer_discrepancy': return 'sync_alt';
         case 'new_consumption_request': return 'assignment';
+        case 'consumption_request_dispatched': return 'local_shipping';
+        case 'consumption_request_received': return 'check_circle';
         default: return 'info';
     }
 };
@@ -82,6 +84,8 @@ const getTitle = (type) => {
         case 'inventory_discrepancy': return 'Ajuste Stock';
         case 'transfer_discrepancy': return 'Mismatch Transferencia';
         case 'new_consumption_request': return 'Solicitud de Consumo';
+        case 'consumption_request_dispatched': return 'Despacho de Consumo';
+        case 'consumption_request_received': return 'Recepción de Consumo';
         default: return 'Notificación';
     }
 };
@@ -94,6 +98,8 @@ const getTitleClass = (type) => {
         case 'inventory_discrepancy': return 'text-orange-600 dark:text-orange-500 uppercase text-[10px]';
         case 'transfer_discrepancy': return 'text-red-600 dark:text-red-500 uppercase text-[10px]';
         case 'new_consumption_request': return 'text-indigo-600 dark:text-indigo-500 uppercase text-[10px]';
+        case 'consumption_request_dispatched': return 'text-emerald-600 dark:text-emerald-500 uppercase text-[10px]';
+        case 'consumption_request_received': return 'text-blue-600 dark:text-blue-500 uppercase text-[10px]';
         default: return '';
     }
 };
@@ -108,6 +114,8 @@ const getIconContainerClass = (type) => {
         case 'inventory_discrepancy': return base + 'bg-orange-50 dark:bg-orange-500/10 text-orange-500 border-orange-100 dark:border-orange-500/20';
         case 'transfer_discrepancy': return base + 'bg-red-50 dark:bg-red-500/10 text-red-500 border-red-100 dark:border-red-500/20 animate-pulse';
         case 'new_consumption_request': return base + 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 border-indigo-100 dark:border-indigo-500/20';
+        case 'consumption_request_dispatched': return base + 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 border-emerald-100 dark:border-emerald-500/20';
+        case 'consumption_request_received': return base + 'bg-blue-50 dark:bg-blue-500/10 text-blue-500 border-blue-100 dark:border-blue-500/20';
         default: return base + 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 border-indigo-100 dark:border-indigo-500/20';
     }
 };
@@ -121,7 +129,7 @@ onMounted(async () => {
             .listen('.nueva.notificacion', (e) => {
                 router.reload({ only: ['notifications'] });
 
-                const urlDestino = e.tipo === 'new_consumption_request'
+                const urlDestino = e.tipo === 'new_consumption_request' || e.tipo === 'consumption_request_dispatched' || e.tipo === 'consumption_request_received'
                     ? route('admin.consumption-requests.index')
                     : null;
 
