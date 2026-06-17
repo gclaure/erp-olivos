@@ -77,6 +77,16 @@ const markAsRead = (id) => {
     });
 };
 
+const handleNotificationClick = (notification) => {
+    if (notification.data?.consumption_request_id) {
+        if (!notification.read_at) {
+            markAsRead(notification.id);
+        }
+        open.value = false;
+        router.visit(route('admin.consumption-requests.show', { consumption_request: notification.data.consumption_request_id }));
+    }
+};
+
 const markAllAsRead = () => {
     router.post(route('admin.notifications.read-all'), {}, {
         preserveScroll: true,
@@ -214,26 +224,34 @@ onMounted(async () => {
                     <template v-if="notifications.length > 0">
                         <div v-for="notification in notifications" 
                              :key="notification.id" 
-                             class="px-4 py-3 hover:bg-zinc-50 dark:hover:bg-secondary-700/50 transition-colors border-b border-zinc-50 dark:border-secondary-700/50 last:border-0 relative group">
-                            <div class="flex gap-3">
-                                <div class="flex-shrink-0 mt-1">
-                                    <div :class="getIconContainerClass(notification.data.type)">
-                                        <span class="material-symbols-outlined text-[16px]">{{ getIcon(notification.data.type) }}</span>
-                                    </div>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-xs font-bold text-zinc-900 dark:text-zinc-50 leading-tight" 
-                                       :class="getTitleClass(notification.data.type)">
-                                        {{ getTitle(notification.data.type) }}
-                                    </p>
-                                    <p class="text-[11px] text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">
-                                        {{ notification.data.message }}
-                                    </p>
-                                    <p class="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1.5 flex items-center gap-1">
-                                        <span class="material-symbols-outlined text-xs">schedule</span>
-                                        {{ notification.created_at }}
-                                    </p>
-                                </div>
+                             @click="handleNotificationClick(notification)"
+                             class="px-4 py-3 hover:bg-zinc-50 dark:hover:bg-secondary-700/50 transition-colors border-b border-zinc-50 dark:border-secondary-700/50 last:border-0 relative group"
+                             :class="notification.data.consumption_request_id ? 'cursor-pointer' : ''">
+                             <div class="flex gap-3">
+                                 <div class="flex-shrink-0 mt-1">
+                                     <div :class="getIconContainerClass(notification.data.type)">
+                                         <span class="material-symbols-outlined text-[16px]">{{ getIcon(notification.data.type) }}</span>
+                                     </div>
+                                 </div>
+                                 <div class="flex-1 min-w-0">
+                                     <p class="text-xs font-bold text-zinc-900 dark:text-zinc-50 leading-tight" 
+                                        :class="getTitleClass(notification.data.type)">
+                                         {{ getTitle(notification.data.type) }}
+                                     </p>
+                                     <p class="text-[11px] text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">
+                                         {{ notification.data.message }}
+                                     </p>
+
+                                     <div v-if="notification.data.consumption_request_id" class="mt-1.5 flex items-center text-[10px] text-indigo-600 dark:text-indigo-400 font-bold hover:underline gap-0.5">
+                                         <span class="material-symbols-outlined text-[11px]">open_in_new</span>
+                                         Ver Solicitud
+                                     </div>
+
+                                     <p class="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1.5 flex items-center gap-1">
+                                         <span class="material-symbols-outlined text-xs">schedule</span>
+                                         {{ notification.created_at }}
+                                     </p>
+                                 </div>
                                 <button @click.stop="markAsRead(notification.id)" 
                                         class="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-zinc-300 dark:text-secondary-600 hover:text-primary-600 dark:hover:text-primary-500"
                                         title="Marcar como leído">

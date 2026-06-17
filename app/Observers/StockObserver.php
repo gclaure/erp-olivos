@@ -55,9 +55,14 @@ class StockObserver
             $qty = (float) $stock->quantity;
             $min = (float) $product->min_stock;
 
-            // 1. Filtrar usuarios: Super Admins O usuarios de la sucursal afectada
-            $users = User::where('is_super_admin', true)
-                ->orWhere('branch_id', $stock->warehouse->branch_id)
+            // 1. Filtrar usuarios: Super Admins o de la sucursal, excluyendo a Consumidores
+            $users = User::where(function ($query) use ($stock) {
+                    $query->where('is_super_admin', true)
+                        ->orWhere('branch_id', $stock->warehouse->branch_id);
+                })
+                ->whereDoesntHave('roles', function ($query) {
+                    $query->whereIn('name', ['Consumidor', 'consumidor']);
+                })
                 ->get()
                 ->unique('id');
 

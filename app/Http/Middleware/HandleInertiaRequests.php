@@ -91,7 +91,7 @@ class HandleInertiaRequests extends Middleware
                 }, 0),
             ],
             'notifications' => fn () => $request->user() ? [
-                'latest' => $request->user()->notifications()->latest()->limit(5)->get(),
+                'latest' => $request->user()->unreadNotifications()->latest()->limit(5)->get(),
                 'unreadCount' => $request->user()->unreadNotifications()->count(),
             ] : null,
             'ecommerceSettings' => fn () => str_contains($request->url(), '/tienda') ? \Illuminate\Support\Facades\Cache::remember(
