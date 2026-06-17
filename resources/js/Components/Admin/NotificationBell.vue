@@ -79,9 +79,6 @@ const markAsRead = (id) => {
 
 const handleNotificationClick = (notification) => {
     if (notification.data?.consumption_request_id) {
-        if (!notification.read_at) {
-            markAsRead(notification.id);
-        }
         open.value = false;
         router.visit(route('admin.consumption-requests.show', { consumption_request: notification.data.consumption_request_id }));
     }
