@@ -375,6 +375,14 @@ class ConsumptionRequestController extends Controller
 
         try {
             $this->consumptionRequestService->cancelRequest($consumptionRequest, (string) $request->input('cancellation_notes'));
+
+            // Disparar evento de actualización en tiempo real por socket
+            try {
+                event(new \App\Events\ConsumptionRequestUpdated($consumptionRequest));
+            } catch (\Throwable) {
+                // Silencioso si Reverb no está disponible
+            }
+
             return redirect()->back()->with('success', 'Solicitud cancelada correctamente.');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors(['error' => $e->getMessage()]);
@@ -453,6 +461,13 @@ class ConsumptionRequestController extends Controller
             $notes = $request->input('observation_notes');
             $this->consumptionRequestService->approveRequest($consumptionRequest, (string)$user->id, $notes);
 
+            // Disparar evento de actualización en tiempo real por socket
+            try {
+                event(new \App\Events\ConsumptionRequestUpdated($consumptionRequest));
+            } catch (\Throwable) {
+                // Silencioso si Reverb no está disponible
+            }
+
             return back()->with('success', 'Solicitud de consumo aprobada exitosamente.');
         } catch (Exception $e) {
             return back()->withErrors(['error' => 'Error al aprobar la solicitud: ' . $e->getMessage()]);
@@ -487,6 +502,13 @@ class ConsumptionRequestController extends Controller
                 (string)$user->id,
                 $request->input('observation_notes')
             );
+
+            // Disparar evento de actualización en tiempo real por socket
+            try {
+                event(new \App\Events\ConsumptionRequestUpdated($consumptionRequest));
+            } catch (\Throwable) {
+                // Silencioso si Reverb no está disponible
+            }
 
             return back()->with('success', 'Solicitud observada correctamente.');
         } catch (Exception $e) {
