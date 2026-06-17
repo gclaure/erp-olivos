@@ -239,6 +239,7 @@ class ConsumptionRequestController extends Controller
             'dispatchedByUser',
             'approvedByUser',
             'observedByUser',
+            'cancelledByUser',
             'details.product.stocks' => function($q) use ($consumptionRequest) {
                 $q->where('warehouse_id', $consumptionRequest->warehouse_id);
             },
@@ -363,16 +364,20 @@ class ConsumptionRequestController extends Controller
         }
     }
 
-    /**
-     * Cancel a consumption request.
-     */
-    public function cancel(ConsumptionRequest $consumptionRequest): RedirectResponse
+    public function cancel(Request $request, ConsumptionRequest $consumptionRequest): RedirectResponse
     {
+        $request->validate([
+            'cancellation_notes' => ['required', 'string', 'min:5', 'max:500'],
+        ], [
+            'cancellation_notes.required' => 'El motivo de la cancelación es obligatorio.',
+            'cancellation_notes.min' => 'El motivo de la cancelación debe tener al menos 5 caracteres.',
+        ]);
+
         try {
-            $this->consumptionRequestService->cancelRequest($consumptionRequest);
+            $this->consumptionRequestService->cancelRequest($consumptionRequest, (string) $request->input('cancellation_notes'));
             return redirect()->back()->with('success', 'Solicitud cancelada correctamente.');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->withErrors(['error' => $e->getMessage()]);
         }
     }
 

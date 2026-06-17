@@ -182,13 +182,20 @@ class PosController extends Controller
             ->orderBy('created_at', 'desc')
             ->limit(1);
 
-        $reservedSubquery = \App\Models\SaleDetail::query()
+        $salesReservedSubquery = \App\Models\SaleDetail::query()
             ->join('sales', 'sales.id', '=', 'sale_details.sale_id')
             ->whereColumn('sale_details.product_id', 'products.id')
             ->where('sales.warehouse_id', $warehouseId)
             ->where('sales.is_delivered', false)
             ->where('sales.is_active', true)
             ->selectRaw('COALESCE(SUM(sale_details.quantity), 0)');
+
+        $consumptionReservedSubquery = \App\Models\ConsumptionRequestDetail::query()
+            ->join('consumption_requests', 'consumption_requests.id', '=', 'consumption_request_details.consumption_request_id')
+            ->whereColumn('consumption_request_details.product_id', 'products.id')
+            ->where('consumption_requests.warehouse_id', $warehouseId)
+            ->whereIn('consumption_requests.status', ['pendiente', 'parcial', 'despachado_parcial', 'compras_generado'])
+            ->selectRaw('COALESCE(SUM(consumption_request_details.quantity_requested - consumption_request_details.quantity_delivered), 0)');
 
         $expirationSubquery = \App\Models\Kardex::select('expiration_date')
             ->whereColumn('product_id', 'products.id')
@@ -215,7 +222,8 @@ class PosController extends Controller
                 'has_expiration'
             ])
             ->addSelect(['unit_cost' => $kardexSubquery])
-            ->addSelect(['reserved_quantity' => $reservedSubquery])
+            ->addSelect(['sales_reserved' => $salesReservedSubquery])
+            ->addSelect(['consumption_reserved' => $consumptionReservedSubquery])
             ->addSelect(['nearest_expiration_date' => $expirationSubquery])
             ->with([
                 'stocks' => function($q) use ($warehouseId) {

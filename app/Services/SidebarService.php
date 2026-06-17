@@ -95,33 +95,6 @@ class SidebarService
                 ]
             ],
             [
-                'label' => 'Comercial',
-                'icon' => 'user-group',
-                'permission' => 'manage-providers',
-                'children' => [
-                    [
-                        'label' => 'Proveedores',
-                        'icon' => 'truck',
-                        'route' => 'admin.providers.index',
-                        'permission' => 'manage-providers',
-                    ],
-                    /*
-                    [
-                        'label' => 'Cuentas por Cobrar',
-                        'icon' => 'credit-card',
-                        'route' => 'admin.accounts-receivable.index',
-                        'permission' => 'manage-sales',
-                    ],
-                    */
-                    [
-                        'label' => 'Cuentas por Pagar',
-                        'icon' => 'document-text',
-                        'route' => 'admin.accounts-payable.index',
-                        'permission' => 'manage-purchases',
-                    ],
-                ]
-            ],
-            [
                 'label' => 'Compras',
                 'icon' => 'shopping-cart',
                 'permission' => 'manage-purchases',
@@ -142,6 +115,18 @@ class SidebarService
                         'label' => 'Historial de Compras',
                         'icon' => 'clipboard-document-list',
                         'route' => 'admin.purchases.index',
+                        'permission' => 'manage-purchases',
+                    ],
+                    [
+                        'label' => 'Proveedores',
+                        'icon' => 'truck',
+                        'route' => 'admin.providers.index',
+                        'permission' => 'manage-providers',
+                    ],
+                    [
+                        'label' => 'Cuentas por Pagar',
+                        'icon' => 'document-text',
+                        'route' => 'admin.accounts-payable.index',
                         'permission' => 'manage-purchases',
                     ],
                 ]

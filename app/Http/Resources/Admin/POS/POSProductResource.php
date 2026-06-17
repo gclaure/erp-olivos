@@ -26,7 +26,7 @@ class POSProductResource extends JsonResource
                 : (isset($this->drive_links[0]) ? $this->drive_links[0] : null),
             'unit_cost' => (float) ($this->unit_cost ?? 0),
             'max_stock' => $this->stocks->sum('quantity'),
-            'reserved_quantity' => $this->reserved_quantity ?? 0,
+            'reserved_quantity' => (float) ($this->sales_reserved ?? $this->reserved_quantity ?? 0) + (float) ($this->consumption_reserved ?? 0),
             'unit' => $this->unitOfMeasure?->abbreviation,
             'unit_name' => $this->unitOfMeasure?->name,
             'units_per_package' => (float) ($this->units_per_package ?? 0),

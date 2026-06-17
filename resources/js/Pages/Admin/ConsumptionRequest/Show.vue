@@ -517,8 +517,13 @@ const handleGeneratePurchaseOrder = () => {
 const handleCancel = () => {
     Swal.fire({
         title: '¿Cancelar Solicitud?',
-        text: 'Esta acción no se puede deshacer y la solicitud se marcará como cancelada.',
+        text: 'Esta acción no se puede deshacer y la solicitud se marcará como cancelada. Por favor, ingrese el motivo obligatorio de la cancelación:',
         icon: 'warning',
+        input: 'textarea',
+        inputPlaceholder: 'Escriba el motivo de la cancelación aquí...',
+        inputAttributes: {
+            'aria-label': 'Motivo de la cancelación'
+        },
         showCancelButton: true,
         confirmButtonText: 'Sí, Cancelar',
         cancelButtonText: 'Volver',
@@ -526,10 +531,17 @@ const handleCancel = () => {
             confirmButton: 'bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
-        buttonsStyling: false
+        buttonsStyling: false,
+        inputValidator: (value) => {
+            if (!value || value.trim().length < 5) {
+                return 'El motivo de la cancelación es obligatorio (mínimo 5 caracteres).'
+            }
+        }
     }).then((result) => {
         if (result.isConfirmed) {
-            router.post(route('admin.consumption-requests.cancel', { consumption_request: request.value.id }), {}, {
+            router.post(route('admin.consumption-requests.cancel', { consumption_request: request.value.id }), {
+                cancellation_notes: result.value
+            }, {
                 onSuccess: (page) => {
                     Swal.fire({
                         icon: 'success',
@@ -819,9 +831,14 @@ const prevImage = () => {
                                                 {{ item.quantity_received !== null ? item.quantity_received.toFixed(2) : '—' }} {{ item.unit_of_measure }}
                                             </span>
                                             <!-- Renderizado de la observación en modo lectura -->
-                                            <span v-if="item.observation" class="text-[10px] text-orange-600 dark:text-orange-400 font-bold italic block text-center max-w-[180px] whitespace-normal leading-tight mt-1 bg-orange-500/5 p-1.5 rounded-xl border border-orange-500/10">
-                                                Obs: {{ item.observation }}
-                                            </span>
+                                            <div 
+                                                v-if="item.observation" 
+                                                :title="item.observation"
+                                                class="text-[10px] text-amber-800 dark:text-amber-400 font-semibold italic block text-left max-w-[240px] whitespace-normal leading-relaxed mt-1.5 bg-amber-500/5 dark:bg-amber-500/10 p-2 rounded-xl border border-amber-200/60 dark:border-amber-800/40 shadow-sm transition-all duration-300"
+                                            >
+                                                <div class="font-black uppercase text-[8px] text-amber-600 dark:text-amber-500 tracking-wider mb-0.5">Observación:</div>
+                                                <p class="line-clamp-3 hover:line-clamp-none cursor-pointer transition-all duration-300 leading-snug">{{ item.observation }}</p>
+                                            </div>
                                         </span>
                                     </td>
                                     <td v-if="canUserDispatch" class="px-6 py-4 text-center">
@@ -1224,40 +1241,80 @@ const prevImage = () => {
                     </h3>
                     
                     <div class="space-y-3.5">
-                        <div>
-                            <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Área Solicitante</span>
-                            <span class="text-xs font-black text-zinc-800 dark:text-secondary-100 uppercase tracking-tight mt-0.5 block">
-                                {{ request.user.name }} ({{ request.requested_by }})
-                            </span>
+                        <!-- Bloque de la Solicitud -->
+                        <div class="p-4 bg-zinc-50 dark:bg-secondary-900/40 rounded-xl border border-zinc-100 dark:border-secondary-700/60 space-y-3.5">
+                            <span class="block text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest border-b border-zinc-200/40 dark:border-secondary-700/30 pb-1.5">Detalles de la Solicitud</span>
+                            
+                            <div>
+                                <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Área Solicitante</span>
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <span class="material-symbols-outlined text-[16px] text-indigo-500 dark:text-indigo-400">meeting_room</span>
+                                    <span class="text-xs font-black text-zinc-800 dark:text-secondary-100 uppercase tracking-tight">
+                                        {{ request.requested_by }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Fecha de Registro de solicitud</span>
+                                <span class="text-xs font-semibold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight mt-0.5 block">
+                                    {{ request.date_formatted }} {{ request.created_at_time ? ' a las ' + request.created_at_time : '' }}
+                                </span>
+                            </div>
+
+                            <div>
+                                <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Registrado Por el usuario</span>
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <span class="material-symbols-outlined text-[16px] text-zinc-400 dark:text-secondary-500">person</span>
+                                    <span class="text-xs font-semibold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight">
+                                        {{ request.user.name }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <div>
-                            <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Almacén Origen</span>
-                            <span class="text-xs font-bold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight mt-0.5 block">
-                                {{ request.warehouse.name }}
+
+                        <!-- Bloque de Cancelación -->
+                        <div v-if="request.status === 'cancelado'"
+                             class="p-4 bg-rose-50 dark:bg-rose-950/20 rounded-xl border border-rose-100 dark:border-rose-900/30 space-y-3.5">
+                            <span class="block text-[8px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest border-b border-rose-200/40 dark:border-rose-900/20 pb-1.5 flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-[14px]">cancel</span>
+                                Detalles de la Cancelación
                             </span>
-                        </div>
-                        
-                        <div>
-                            <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Fecha de Registro</span>
-                            <span class="text-xs font-semibold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight mt-0.5 block">
-                                {{ request.date_formatted }}
-                            </span>
-                        </div>
-                        
-                        <div>
-                            <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Registrado Por</span>
-                            <span class="text-xs font-semibold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight mt-0.5 block">
-                                {{ request.user.name }}
-                            </span>
+                            
+                            <div>
+                                <span class="block text-[9px] font-black text-rose-400 dark:text-rose-500 uppercase tracking-widest">Cancelado Por el usuario</span>
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <span class="material-symbols-outlined text-[16px] text-rose-500 dark:text-rose-400">person</span>
+                                    <span class="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-tight">
+                                        {{ request.cancelled_by_user ? request.cancelled_by_user.name : 'N/A' }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <span class="block text-[9px] font-black text-rose-400 dark:text-rose-500 uppercase tracking-widest">Fecha de Cancelación</span>
+                                <span class="text-xs font-semibold text-rose-700 dark:text-rose-300 uppercase tracking-tight mt-0.5 block">
+                                    {{ request.cancelled_at_formatted || 'N/A' }}
+                                </span>
+                            </div>
+
+                            <div v-if="request.cancellation_notes">
+                                <span class="block text-[9px] font-black text-rose-400 dark:text-rose-500 uppercase tracking-widest">Motivo de Cancelación</span>
+                                <span class="text-xs font-semibold text-rose-700 dark:text-rose-300 uppercase tracking-tight mt-1 block bg-rose-500/5 p-2.5 rounded-xl border border-rose-500/10 whitespace-pre-line leading-relaxed">
+                                    {{ request.cancellation_notes }}
+                                </span>
+                            </div>
                         </div>
 
                         <!-- Aprobación -->
                         <div v-if="request.approved_by_user">
                             <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Aprobado Por</span>
-                            <span class="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tight mt-0.5 block">
-                                {{ request.approved_by_user.name }}
-                            </span>
+                            <div class="flex items-center gap-1.5 mt-1">
+                                <span class="material-symbols-outlined text-[16px] text-emerald-500 dark:text-emerald-400">person</span>
+                                <span class="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">
+                                    {{ request.approved_by_user.name }}
+                                </span>
+                            </div>
                         </div>
 
                         <div v-if="request.approved_by_user && request.approved_at_formatted">
@@ -1270,9 +1327,12 @@ const prevImage = () => {
                         <!-- Observación -->
                         <div v-if="request.observed_by_user">
                             <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Observado Por</span>
-                            <span class="text-xs font-black text-orange-600 dark:text-orange-400 uppercase tracking-tight mt-0.5 block">
-                                {{ request.observed_by_user.name }}
-                            </span>
+                            <div class="flex items-center gap-1.5 mt-1">
+                                <span class="material-symbols-outlined text-[16px] text-orange-500 dark:text-orange-400">person</span>
+                                <span class="text-xs font-black text-orange-600 dark:text-orange-400 uppercase tracking-tight">
+                                    {{ request.observed_by_user.name }}
+                                </span>
+                            </div>
                         </div>
 
                         <div v-if="request.observed_by_user && request.observed_at_formatted">
@@ -1289,32 +1349,55 @@ const prevImage = () => {
                             </span>
                         </div>
 
-                        <div v-if="request.status !== 'pendiente' && request.status !== 'observado' && request.status !== 'cancelado'">
-                            <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Despachado Por</span>
-                            <span class="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tight mt-0.5 block">
-                                {{ request.dispatched_by_user ? request.dispatched_by_user.name : 'N/A' }}
+                        <!-- Bloque de Despacho -->
+                        <div v-if="request.status !== 'pendiente' && request.status !== 'observado' && request.status !== 'cancelado'"
+                             class="p-4 bg-zinc-50 dark:bg-secondary-900/40 rounded-xl border border-zinc-100 dark:border-secondary-700/60 space-y-3.5">
+                            <span class="block text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest border-b border-zinc-200/40 dark:border-secondary-700/30 pb-1.5 flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-[14px]">local_shipping</span>
+                                Detalles del Despacho
                             </span>
-                        </div>
+                            
+                            <div>
+                                <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Despachado Por el usuario</span>
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <span class="material-symbols-outlined text-[16px] text-indigo-500 dark:text-indigo-400">person</span>
+                                    <span class="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tight">
+                                        {{ request.dispatched_by_user ? request.dispatched_by_user.name : 'N/A' }}
+                                    </span>
+                                </div>
+                            </div>
 
-                        <div v-if="request.status !== 'pendiente' && request.status !== 'observado' && request.status !== 'cancelado'">
-                            <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Fecha de Despacho</span>
-                            <span class="text-xs font-semibold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight mt-0.5 block">
-                                {{ request.dispatched_at_formatted || 'N/A' }}
-                            </span>
+                            <div>
+                                <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Fecha de Despacho</span>
+                                <span class="text-xs font-semibold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight mt-0.5 block">
+                                    {{ request.dispatched_at_formatted || 'N/A' }}
+                                </span>
+                            </div>
                         </div>
-                        
-                        <div v-if="request.status === 'entregado'">
-                            <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Recepcionado Por</span>
-                            <span class="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tight mt-0.5 block">
-                                {{ request.received_by_user ? request.received_by_user.name : 'N/A' }}
+                        <!-- Bloque de Recepción -->
+                        <div v-if="request.status === 'entregado'"
+                             class="p-4 bg-zinc-50 dark:bg-secondary-900/40 rounded-xl border border-zinc-100 dark:border-secondary-700/60 space-y-3.5">
+                            <span class="block text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest border-b border-zinc-200/40 dark:border-secondary-700/30 pb-1.5 flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-[14px]">assignment_turned_in</span>
+                                Detalles de la Recepción
                             </span>
-                        </div>
-                        
-                        <div v-if="request.status === 'entregado'">
-                            <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Fecha de Recepción</span>
-                            <span class="text-xs font-semibold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight mt-0.5 block">
-                                {{ request.received_at_formatted || 'N/A' }}
-                            </span>
+                            
+                            <div>
+                                <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Recepcionado Por El Usuario</span>
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <span class="material-symbols-outlined text-[16px] text-emerald-500 dark:text-emerald-400">person</span>
+                                    <span class="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">
+                                        {{ request.received_by_user ? request.received_by_user.name : 'N/A' }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Fecha de Recepción</span>
+                                <span class="text-xs font-semibold text-zinc-700 dark:text-secondary-300 uppercase tracking-tight mt-0.5 block">
+                                    {{ request.received_at_formatted || 'N/A' }}
+                                </span>
+                            </div>
                         </div>
                         
                         <div v-if="request.notes">

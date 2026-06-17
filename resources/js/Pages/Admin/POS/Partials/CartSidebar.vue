@@ -134,6 +134,28 @@ const toggleSpeechRecognition = () => {
     }
 };
 
+const isStockExceeded = (item) => {
+    const itemWarehouseId = item.warehouse_id || page.props.initialConfig?.activeWarehouseId;
+    const stockObj = (item.stocks || []).find(s => s.warehouse_id === itemWarehouseId);
+    const physicalStock = stockObj ? parseFloat(stockObj.quantity) : 0;
+    const reservedStock = parseFloat(item.reserved_quantity || 0);
+    const availableStock = Math.max(0, physicalStock - reservedStock);
+    const requestedStock = parseFloat(item.quantity || 0);
+    return requestedStock > availableStock;
+};
+
+const getAvailableStock = (item) => {
+    const itemWarehouseId = item.warehouse_id || page.props.initialConfig?.activeWarehouseId;
+    const stockObj = (item.stocks || []).find(s => s.warehouse_id === itemWarehouseId);
+    const physicalStock = stockObj ? parseFloat(stockObj.quantity) : 0;
+    const reservedStock = parseFloat(item.reserved_quantity || 0);
+    return Math.max(0, physicalStock - reservedStock);
+};
+
+const hasStockErrors = computed(() => {
+    return props.cart.some(item => isStockExceeded(item));
+});
+
 const submitConsumption = () => {
     const area = (currentUser.value?.area || '').trim();
     if (!area) {
@@ -156,6 +178,10 @@ const submitConsumption = () => {
                 confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded-lg font-bold'
             }
         });
+        return;
+    }
+
+    if (hasStockErrors.value) {
         return;
     }
 
@@ -277,7 +303,12 @@ const formatDate = (dateStr) => {
                 <div 
                     v-for="item in cart" 
                     :key="item.id" 
-                    class="bg-white dark:bg-secondary-800 rounded-2xl p-4 shadow-sm border border-zinc-100 dark:border-secondary-700 flex flex-col gap-3 group transition-all hover:border-emerald-300 dark:hover:border-emerald-500/50 hover:shadow-md"
+                    :class="[
+                        isStockExceeded(item)
+                            ? 'border-red-500 dark:border-red-500/70 bg-red-50/20 dark:bg-red-950/15 hover:border-red-600'
+                            : 'border-zinc-100 dark:border-secondary-700 hover:border-emerald-300 dark:hover:border-emerald-500/50 bg-white dark:bg-secondary-800',
+                        'rounded-2xl p-4 shadow-sm border flex flex-col gap-3 group transition-all hover:shadow-md'
+                    ]"
                 >
                     <div class="flex justify-between items-start gap-3">
                         <div class="flex-1 min-w-0">
@@ -386,6 +417,11 @@ const formatDate = (dateStr) => {
                                         {{ (parseFloat(item.quantity || 0) / parseFloat(item.units_per_package)).toFixed(2) }} {{ item.package_name }}s
                                     </span>
                                 </div>
+                                <!-- Mensaje de Error de Stock Excedido -->
+                                <div v-if="isStockExceeded(item)" class="text-[10px] font-black text-rose-600 dark:text-rose-400 mt-1 uppercase tracking-wider flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">warning</span>
+                                    <span>Stock insuficiente: {{ getAvailableStock(item) }} disp.</span>
+                                </div>
                             </div>
 
                             <div v-if="operationType !== 'consumption'" class="flex flex-col gap-1.5 flex-shrink-0">
@@ -492,12 +528,18 @@ const formatDate = (dateStr) => {
 
                 <button 
                     @click="submitConsumption"
-                    class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 transition-colors text-white rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 shadow-lg hover:shadow-blue-500/20"
+                    :disabled="hasStockErrors"
+                    :class="[
+                        hasStockErrors 
+                            ? 'bg-zinc-400 dark:bg-secondary-700 text-zinc-300 cursor-not-allowed shadow-none' 
+                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-500/20',
+                        'w-full py-3.5 transition-colors rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2'
+                    ]"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
                     </svg>
-                    Enviar Solicitud de Consumo
+                    {{ hasStockErrors ? 'Corrija el stock excedido' : 'Enviar Solicitud de Consumo' }}
                 </button>
             </div>
 

@@ -60,6 +60,13 @@ class ConsumptionRequestResource extends JsonResource
             'observed_at' => $this->observed_at?->format('Y-m-d H:i:s'),
             'observed_at_formatted' => $this->observed_at ? $this->observed_at->translatedFormat('d \d\e F, Y \a \l\a\s H:i') : null,
             'observation_notes' => $this->observation_notes,
+            'cancelled_by_user' => $this->relationLoaded('cancelledByUser') && $this->cancelledByUser ? [
+                'id' => $this->cancelledByUser->id,
+                'name' => $this->cancelledByUser->name,
+            ] : null,
+            'cancelled_at' => $this->cancelled_at?->format('Y-m-d H:i:s'),
+            'cancelled_at_formatted' => $this->cancelled_at ? $this->cancelled_at->translatedFormat('d \d\e F, Y \a \l\a\s H:i') : null,
+            'cancellation_notes' => $this->cancellation_notes,
             'details' => ConsumptionRequestDetailResource::collection($this->whenLoaded('details')),
             'has_missing_stock' => $this->whenLoaded('details', function () {
                 foreach ($this->details as $detail) {
