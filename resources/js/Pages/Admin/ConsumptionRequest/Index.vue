@@ -6,22 +6,48 @@ import debounce from 'lodash/debounce';
 import Swal from 'sweetalert2';
 
 // ── Notificaciones del navegador (inline) ────────────────────────────────────
-const _reproducirSonido = () => {
+let audioCtx = null;
+
+const desbloquearAudio = () => {
     try {
         const Ctx = window.AudioContext || window.webkitAudioContext;
         if (!Ctx) return;
-        const ctx = new Ctx();
+        if (!audioCtx) {
+            audioCtx = new Ctx();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    } catch { /* silencioso */ }
+};
+
+// Registrar listeners globales para desbloquear el audio en móviles en el primer toque/click
+if (typeof document !== 'undefined') {
+    document.addEventListener('click', desbloquearAudio, { once: true });
+    document.addEventListener('touchstart', desbloquearAudio, { once: true });
+}
+
+const _reproducirSonido = () => {
+    try {
+        if (!audioCtx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            audioCtx = new Ctx();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
         const tocar = (f, t, d) => {
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.connect(g); g.connect(ctx.destination);
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.connect(g); g.connect(audioCtx.destination);
             o.type = 'sine'; o.frequency.value = f;
             g.gain.setValueAtTime(0, t);
             g.gain.linearRampToValueAtTime(0.25, t + 0.01);
             g.gain.exponentialRampToValueAtTime(0.001, t + d);
             o.start(t); o.stop(t + d);
         };
-        tocar(880,  ctx.currentTime,        0.18);
-        tocar(1100, ctx.currentTime + 0.18, 0.35);
+        tocar(880,  audioCtx.currentTime,        0.18);
+        tocar(1100, audioCtx.currentTime + 0.18, 0.35);
     } catch { /* silencioso */ }
 };
 
@@ -189,7 +215,7 @@ const subscribeToBranch = (branchId) => {
             .listen('.consumption-request.updated', (e) => {
                 const index = localRequests.value.findIndex(r => r.id === e.request.id);
                 if (index !== -1) {
-                    localRequests.value[index] = e.request;
+                    localRequests.value.splice(index, 1, e.request);
 
                     // Badge en pestaña, favicon y toast si el usuario actual es consumidor/dueño de la solicitud
                     const currentUser = page.props.auth.user;
