@@ -27,11 +27,8 @@ const canUserDispatch = computed(() => {
     const user = page.props.auth.user;
     if (!user) return false;
     const roles = user.roles || [];
-    const hasRole = roles.includes('Almacén') || roles.includes('almacen') || 
-                    roles.includes('Admin') || roles.includes('admin') || 
-                    roles.includes('Administrador') || roles.includes('administrador') ||
-                    !!user.is_super_admin;
-    const hasStatus = ['pendiente', 'aprobado', 'despachado_parcial'].includes(request.value.status);
+    const hasRole = roles.includes('Almacén') || roles.includes('almacen');
+    const hasStatus = ['aprobado', 'despachado_parcial'].includes(request.value.status);
     return hasRole && hasStatus;
 });
 
@@ -89,20 +86,93 @@ const subscribeToBranch = (branchId) => {
         window.Echo.private(`sucursal.${branchId}`)
             .listen('.consumption-request.updated', (e) => {
                 if (e.request.id === request.value.id) {
+                    const previousStatus = request.value.status;
                     request.value = e.request;
-                    
-                    if (isWarehouseRole.value && e.request.status === 'entregado') {
-                        const detailedMsg = getDetailedMessage(e.request);
-                        Swal.fire({
-                            toast: true,
-                            position: 'top-end',
-                            icon: 'success',
-                            title: `Recepción confirmada #${e.request.formatted_number}`,
-                            text: detailedMsg,
-                            showConfirmButton: false,
-                            timer: 6000,
-                            timerProgressBar: true
-                        });
+                    const actionUserId = e.request.approved_by_user_id || e.request.dispatched_by_user_id || e.request.received_by_user_id || e.request.cancelled_by_user_id || e.request.observed_by_user_id;
+                    const currentUserId = String(page.props.auth.user?.id);
+                    const isOwnAction = actionUserId && String(actionUserId) === currentUserId;
+
+                    if (!isOwnAction && e.action) {
+                        const number = e.request.formatted_number || 'S/N';
+
+                        if (e.action === 'approved' && (isAdmin.value || isConsumidorRole.value)) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: `Solicitud Aprobada #${number}`,
+                                text: 'La solicitud fue aprobada por el administrador.',
+                                showConfirmButton: false,
+                                timer: 5000,
+                                timerProgressBar: true
+                            });
+                        }
+
+                        if (e.action === 'dispatched' && isConsumidorRole.value) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: `Solicitud Despachada #${number}`,
+                                text: 'El almacén despachó los insumos. Ya puede confirmar la recepción.',
+                                showConfirmButton: false,
+                                timer: 5000,
+                                timerProgressBar: true
+                            });
+                        }
+
+                        if (e.action === 'received' && isAdmin.value) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: `Recepción Confirmada #${number}`,
+                                text: `El consumidor ${e.request.received_by_user?.name || ''} confirmó la recepción.`,
+                                showConfirmButton: false,
+                                timer: 6000,
+                                timerProgressBar: true
+                            });
+                        }
+
+                        if (e.action === 'received' && isWarehouseRole.value) {
+                            const detailedMsg = getDetailedMessage(e.request);
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: `Recepción Confirmada #${number}`,
+                                text: detailedMsg,
+                                showConfirmButton: false,
+                                timer: 6000,
+                                timerProgressBar: true
+                            });
+                        }
+
+                        if (e.action === 'observed' && isConsumidorRole.value) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'info',
+                                title: `Solicitud Observada #${number}`,
+                                text: 'El administrador observó esta solicitud. Revise los comentarios.',
+                                showConfirmButton: false,
+                                timer: 5000,
+                                timerProgressBar: true
+                            });
+                        }
+
+                        if (e.action === 'cancelled' && isWarehouseRole.value) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'info',
+                                title: `Solicitud Cancelada #${number}`,
+                                text: 'El consumidor canceló esta solicitud.',
+                                showConfirmButton: false,
+                                timer: 5000,
+                                timerProgressBar: true
+                            });
+                        }
                     }
                 }
             });
@@ -123,6 +193,11 @@ const receivedQuantities = ref({});
 const dispatchQuantities = ref({});
 const observations = ref({});
 const dispatchObservations = ref({});
+const showDispatchObs = ref({});
+
+const toggleDispatchObs = (itemId) => {
+    showDispatchObs.value[itemId] = !showDispatchObs.value[itemId];
+};
 
 const initQuantities = () => {
     if (request.value && request.value.details) {
@@ -331,8 +406,8 @@ const hasAnyStockToDispatch = computed(() => {
 
 // Acciones
 const handleDispatch = () => {
-    // Validar cantidades recolectadas de la tabla/vista móvil
     const payload = {};
+    const obsPayload = {};
     let hasError = false;
     let errorMsg = '';
     let totalToDispatch = 0;
@@ -354,6 +429,10 @@ const handleDispatch = () => {
                 const finalQty = parseFloat(rawVal.toFixed(2));
                 payload[item.id] = finalQty;
                 totalToDispatch += finalQty;
+                const obs = (dispatchObservations.value[item.id] || '').trim().slice(0, 500);
+                if (obs.length > 0) {
+                    obsPayload[item.id] = obs;
+                }
             }
         }
     });
@@ -378,20 +457,45 @@ const handleDispatch = () => {
 
     Swal.fire({
         title: '¿Confirmar Despacho?',
-        text: 'Se registrará la salida física del inventario para las cantidades especificadas.',
+        html: `
+            <p class="text-sm text-zinc-600 dark:text-secondary-300 text-left mb-4" style="font-family: inherit;">Se registrará la salida física del inventario para las cantidades especificadas.</p>
+            <div class="text-left">
+                <label class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1">Observación general (opcional)</label>
+                <textarea id="swal-dispatch-obs" rows="3" maxlength="500" placeholder="Nota sobre el despacho..." class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y" style="min-height: 60px;"></textarea>
+                <div class="text-right mt-1"><span id="swal-dispatch-obs-counter" class="text-[8px] font-bold text-zinc-300 dark:text-secondary-600">0/500</span></div>
+            </div>
+        `,
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Sí, Despachar',
         cancelButtonText: 'Cancelar',
         customClass: {
+            popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
+            title: 'text-zinc-900 dark:text-white font-black',
+            htmlContainer: 'text-zinc-600 dark:text-secondary-300',
             confirmButton: 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
-        buttonsStyling: false
+        buttonsStyling: false,
+        didOpen: () => {
+            const ta = document.getElementById('swal-dispatch-obs');
+            const counter = document.getElementById('swal-dispatch-obs-counter');
+            if (ta && counter) {
+                ta.addEventListener('input', () => {
+                    counter.textContent = `${ta.value.length}/500`;
+                    counter.classList.toggle('text-amber-500', ta.value.length > 450);
+                });
+            }
+        }
     }).then((result) => {
         if (result.isConfirmed) {
+            const ta = document.getElementById('swal-dispatch-obs');
+            const dispatchObs = (ta ? ta.value : '').trim().slice(0, 500);
+
             router.post(route('admin.consumption-requests.dispatch', { consumption_request: request.value.id }), {
-                quantities: payload
+                quantities: payload,
+                observations: obsPayload,
+                dispatch_observation: dispatchObs
             }, {
                 onSuccess: (page) => {
                     Swal.fire({
@@ -412,7 +516,6 @@ const handleDispatch = () => {
 };
 
 const handleReceive = () => {
-    // Validar cantidades recolectadas de la tabla
     const payload = {};
     const obsPayload = {};
     let hasError = false;
@@ -428,7 +531,6 @@ const handleReceive = () => {
                 const finalQty = parseFloat(rawVal.toFixed(2));
                 payload[item.id] = finalQty;
 
-                // Si la cantidad es diferente a la solicitada, la observación es obligatoria
                 const isDifferent = Math.abs(finalQty - parseFloat(item.quantity_requested.toFixed(2))) >= 0.01;
                 const obs = observations.value[item.id] ? observations.value[item.id].trim() : '';
 
@@ -455,21 +557,50 @@ const handleReceive = () => {
 
     Swal.fire({
         title: '¿Confirmar Recepción?',
-        text: 'Al confirmar, declararás que el área solicitante recibió físicamente las cantidades especificadas directamente en la tabla y se cerrará este ciclo de solicitud.',
+        html: `
+            <p class="text-sm text-zinc-600 dark:text-secondary-300 text-left mb-4" style="font-family: inherit;">Al confirmar, declararás que el área solicitante recibió físicamente las cantidades especificadas y se cerrará este ciclo de solicitud.</p>
+            <div class="text-left">
+                <label class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1">Observación (opcional)</label>
+                <textarea id="swal-receive-obs" rows="3" maxlength="500" placeholder="Nota sobre la recepción..." class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y" style="min-height: 60px;"></textarea>
+                <div class="text-right mt-1"><span id="swal-receive-obs-counter" class="text-[8px] font-bold text-zinc-300 dark:text-secondary-600">0/500</span></div>
+            </div>
+        `,
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Sí, Recepcionar',
         cancelButtonText: 'Cancelar',
         customClass: {
+            popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
+            title: 'text-zinc-900 dark:text-white font-black',
             confirmButton: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
-        buttonsStyling: false
+        buttonsStyling: false,
+        didOpen: () => {
+            const ta = document.getElementById('swal-receive-obs');
+            const counter = document.getElementById('swal-receive-obs-counter');
+            if (ta && counter) {
+                ta.addEventListener('input', () => {
+                    counter.textContent = `${ta.value.length}/500`;
+                    counter.classList.toggle('text-amber-500', ta.value.length > 450);
+                });
+            }
+        }
     }).then((result) => {
         if (result.isConfirmed) {
+            const ta = document.getElementById('swal-receive-obs');
+            const receiveObs = (ta ? ta.value : '').trim().slice(0, 500);
+            const receiveObsPayload = {};
+            if (receiveObs.length > 0) {
+                Object.keys(payload).forEach((detailId) => {
+                    receiveObsPayload[detailId] = receiveObs;
+                });
+            }
+
             router.post(route('admin.consumption-requests.receive', { consumption_request: request.value.id }), {
                 received_quantities: payload,
-                observations: obsPayload
+                observations: obsPayload,
+                receive_observations: receiveObsPayload
             }, {
                 onSuccess: (page) => {
                     Swal.fire({
@@ -498,6 +629,9 @@ const handleGeneratePurchaseOrder = () => {
         confirmButtonText: 'Sí, Generar',
         cancelButtonText: 'Cancelar',
         customClass: {
+            popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
+            title: 'text-zinc-900 dark:text-white font-black',
+            htmlContainer: 'text-zinc-600 dark:text-secondary-300',
             confirmButton: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
@@ -528,6 +662,10 @@ const handleCancel = () => {
         confirmButtonText: 'Sí, Cancelar',
         cancelButtonText: 'Volver',
         customClass: {
+            popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
+            title: 'text-zinc-900 dark:text-white font-black',
+            htmlContainer: 'text-zinc-600 dark:text-secondary-300 mb-2',
+            input: 'w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 focus:ring-2 focus:ring-rose-500 focus:border-rose-500',
             confirmButton: 'bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
@@ -572,6 +710,11 @@ const handleApprove = () => {
         confirmButtonText: 'Sí, Aprobar',
         cancelButtonText: 'Cancelar',
         customClass: {
+            popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
+            title: 'text-zinc-900 dark:text-white font-black',
+            htmlContainer: 'text-zinc-600 dark:text-secondary-300 mb-2',
+            inputLabel: 'text-xs font-bold text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1',
+            input: 'w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500',
             confirmButton: 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
@@ -694,7 +837,7 @@ const prevImage = () => {
                                     <th scope="col" class="px-6 py-3.5 text-center text-[9px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Solicitado</th>
                                     <th v-if="request.status === 'despachado' || request.status === 'despachado_parcial' || request.status === 'entregado'" scope="col" class="px-6 py-3.5 text-center text-[9px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Recibido</th>
                                     <th v-if="canUserDispatch" scope="col" class="px-6 py-3.5 text-center text-[9px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Despachando</th>
-                                    <th scope="col" class="px-6 py-3.5 class text-center text-[9px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Stock Físico</th>
+                                    <th v-if="!isConsumidorRole" scope="col" class="px-6 py-3.5 class text-center text-[9px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Stock Físico</th>
                                     <th scope="col" class="px-6 py-3.5 text-right text-[9px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Estado</th>
                                 </tr>
                             </thead>
@@ -777,6 +920,16 @@ const prevImage = () => {
                                                 </div>
                                             </div>
                                         </div>
+                                        <!-- Observación de Despacho del Almacén -->
+                                        <div 
+                                            v-if="item.observation" 
+                                            class="mt-2 max-w-md"
+                                        >
+                                            <span class="block text-[9px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">Observación de Despacho</span>
+                                            <span class="text-[10px] font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-tight mt-1 block bg-orange-500/5 p-2.5 rounded-xl border border-orange-500/10 whitespace-pre-line leading-relaxed">
+                                                {{ item.observation }}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4 text-center whitespace-nowrap">
                                         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border border-blue-100/30 dark:border-blue-900/20">
@@ -853,6 +1006,44 @@ const prevImage = () => {
                                                 />
                                                 <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500">{{ item.unit_of_measure }}</span>
                                             </div>
+                                            <!-- Observación opcional toggle -->
+                                            <button 
+                                                v-if="!showDispatchObs[item.id] && !(dispatchObservations[item.id] || '').trim()"
+                                                type="button"
+                                                @click="toggleDispatchObs(item.id)"
+                                                class="text-[9px] text-zinc-400 dark:text-secondary-500 hover:text-indigo-500 dark:hover:text-indigo-400 font-bold uppercase tracking-wider transition-colors mt-0.5"
+                                            >
+                                                + Observación
+                                            </button>
+                                            <!-- Observación opcional textarea -->
+                                            <div v-if="showDispatchObs[item.id] || (dispatchObservations[item.id] || '').trim()" class="mt-1.5 w-full max-w-[210px]">
+                                                <div class="flex items-center justify-between mb-0.5">
+                                                    <span class="text-[8px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Observación (opcional)</span>
+                                                    <button v-if="!(dispatchObservations[item.id] || '').trim()" type="button" @click="toggleDispatchObs(item.id)" class="text-[8px] text-zinc-400 hover:text-zinc-600 dark:text-secondary-500 dark:hover:text-secondary-300 font-bold">✕</button>
+                                                </div>
+                                                <div class="flex items-start gap-1">
+                                                    <textarea 
+                                                        rows="2"
+                                                        placeholder="Nota sobre el despacho..." 
+                                                        v-model="dispatchObservations[item.id]" 
+                                                        maxlength="500"
+                                                        class="flex-1 text-left rounded-lg border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-[10px] font-bold p-1.5 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y min-h-[40px]"
+                                                    ></textarea>
+                                                    <button 
+                                                        type="button"
+                                                        @click="toggleSpeechRecognition(item.id)"
+                                                        class="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center transition-all duration-300 shadow-sm"
+                                                        :class="activeListeningId === item.id && currentVoiceField === 'dispatch' ? 'bg-rose-500 text-white animate-pulse' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-secondary-700 dark:hover:bg-secondary-600 dark:text-secondary-300 border border-zinc-200 dark:border-secondary-600'"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="text-right mt-0.5">
+                                                    <span class="text-[8px] font-bold" :class="(dispatchObservations[item.id] || '').length > 450 ? 'text-amber-500' : 'text-zinc-300 dark:text-secondary-600'">{{ (dispatchObservations[item.id] || '').length }}/500</span>
+                                                </div>
+                                            </div>
                                             <!-- Entrada de Observación Obligatoria si supera el stock o lo pendiente -->
                                             <div v-if="(dispatchQuantities[item.id] ?? 0) > (item.quantity_requested - item.quantity_delivered) || (dispatchQuantities[item.id] ?? 0) > item.stock_available" class="mt-1.5 w-full max-w-[210px] flex items-center gap-1">
                                                 <textarea 
@@ -874,7 +1065,7 @@ const prevImage = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 text-center whitespace-nowrap">
+                                    <td v-if="!isConsumidorRole" class="px-6 py-4 text-center whitespace-nowrap">
                                         <span class="text-xs font-semibold" :class="getRemainingStock(item) > 0 ? 'text-zinc-700 dark:text-secondary-300' : 'text-rose-500 dark:text-rose-400 font-bold'">
                                             {{ getRemainingStock(item) }} {{ item.unit_of_measure }}
                                         </span>
@@ -1043,7 +1234,7 @@ const prevImage = () => {
                                         {{ item.quantity_requested }} {{ item.unit_of_measure }}
                                     </span>
                                 </div>
-                                <div class="flex flex-col">
+                                <div v-if="!isConsumidorRole" class="flex flex-col">
                                     <span class="text-[9px] text-zinc-400 dark:text-secondary-500 font-bold uppercase tracking-wider">Stock Físico</span>
                                     <span class="text-xs font-black mt-0.5" :class="getRemainingStock(item) > 0 ? 'text-zinc-700 dark:text-secondary-300' : 'text-rose-500 dark:text-rose-400 font-bold'">
                                         {{ getRemainingStock(item) }} {{ item.unit_of_measure }}
@@ -1059,6 +1250,17 @@ const prevImage = () => {
                                     </span>
                                     <span v-else class="text-zinc-400 dark:text-secondary-600">—</span>
                                 </div>
+                            </div>
+
+                            <!-- Observación de Despacho del Almacén (Mobile) -->
+                            <div 
+                                v-if="item.observation" 
+                                class="mt-1"
+                            >
+                                <span class="block text-[9px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">Observación de Despacho</span>
+                                <span class="text-[10px] font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-tight mt-1 block bg-orange-500/5 p-2.5 rounded-xl border border-orange-500/10 whitespace-pre-line leading-relaxed">
+                                    {{ item.observation }}
+                                </span>
                             </div>
 
                             <!-- Sección de Despacho (Si el usuario puede despachar) -->
@@ -1078,6 +1280,44 @@ const prevImage = () => {
                                                 class="w-24 text-right rounded-lg border border-zinc-200 dark:border-secondary-700 bg-white dark:bg-secondary-900 text-xs font-black p-1.5 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-800 dark:text-secondary-100"
                                             />
                                             <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase">{{ item.unit_of_measure }}</span>
+                                        </div>
+                                    </div>
+                                    <!-- Observación opcional toggle -->
+                                    <button 
+                                        v-if="!showDispatchObs[item.id] && !(dispatchObservations[item.id] || '').trim()"
+                                        type="button"
+                                        @click="toggleDispatchObs(item.id)"
+                                        class="text-[9px] text-zinc-400 dark:text-secondary-500 hover:text-indigo-500 dark:hover:text-indigo-400 font-bold uppercase tracking-wider transition-colors self-start"
+                                    >
+                                        + Observación
+                                    </button>
+                                    <!-- Observación opcional textarea -->
+                                    <div v-if="showDispatchObs[item.id] || (dispatchObservations[item.id] || '').trim()" class="w-full">
+                                        <div class="flex items-center justify-between mb-0.5">
+                                            <span class="text-[8px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest">Observación (opcional)</span>
+                                            <button v-if="!(dispatchObservations[item.id] || '').trim()" type="button" @click="toggleDispatchObs(item.id)" class="text-[8px] text-zinc-400 hover:text-zinc-600 dark:text-secondary-500 dark:hover:text-secondary-300 font-bold">✕</button>
+                                        </div>
+                                        <div class="flex items-start gap-1.5">
+                                            <textarea 
+                                                rows="2"
+                                                placeholder="Nota sobre el despacho..." 
+                                                v-model="dispatchObservations[item.id]" 
+                                                maxlength="500"
+                                                class="flex-1 text-left rounded-lg border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-[10px] font-bold p-2 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y min-h-[44px]"
+                                            ></textarea>
+                                            <button 
+                                                type="button"
+                                                @click="toggleSpeechRecognition(item.id)"
+                                                class="w-9 h-9 flex-shrink-0 rounded-lg flex items-center justify-center transition-all duration-300 shadow-sm"
+                                                :class="activeListeningId === item.id && currentVoiceField === 'dispatch' ? 'bg-rose-500 text-white animate-pulse' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-secondary-700 dark:hover:bg-secondary-600 dark:text-secondary-300 border border-zinc-200 dark:border-secondary-600'"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="text-right mt-0.5">
+                                            <span class="text-[8px] font-bold" :class="(dispatchObservations[item.id] || '').length > 450 ? 'text-amber-500' : 'text-zinc-300 dark:text-secondary-600'">{{ (dispatchObservations[item.id] || '').length }}/500</span>
                                         </div>
                                     </div>
                                     <!-- Entrada de Observación Obligatoria si supera el stock o lo pendiente -->
@@ -1178,7 +1418,7 @@ const prevImage = () => {
                     </div>
                 </div>
 
-                <!-- AVISO PARA CONSUMIDOR: ESPERANDO DESPACHO -->
+                <!-- AVISO PARA CONSUMIDOR: PENDIENTE DE APROBACIÓN -->
                 <div 
                     v-if="request.status === 'pendiente' && isConsumidorRole"
                     class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 transition-colors duration-300"
@@ -1189,9 +1429,27 @@ const prevImage = () => {
                         </svg>
                     </div>
                     <div>
+                        <h4 class="text-xs font-black text-amber-800 dark:text-amber-400 uppercase tracking-wide">Pendiente de Aprobación</h4>
+                        <p class="text-[11px] text-amber-700/90 dark:text-amber-500/90 mt-1 uppercase font-bold tracking-tight leading-relaxed">
+                            Su solicitud fue registrada exitosamente. Está a la espera de la aprobación del Administrador.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- AVISO PARA CONSUMIDOR: EN ESPERA DE DESPACHO -->
+                <div 
+                    v-if="request.status === 'aprobado' && isConsumidorRole"
+                    class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 transition-colors duration-300"
+                >
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                    </div>
+                    <div>
                         <h4 class="text-xs font-black text-amber-800 dark:text-amber-400 uppercase tracking-wide">En Espera de Despacho</h4>
                         <p class="text-[11px] text-amber-700/90 dark:text-amber-500/90 mt-1 uppercase font-bold tracking-tight leading-relaxed">
-                            Su solicitud fue registrada exitosamente. El almacenero está preparando los insumos para el despacho.
+                            Su solicitud fue aprobada. El almacenero está preparando los insumos para el despacho.
                         </p>
                     </div>
                 </div>
@@ -1216,7 +1474,7 @@ const prevImage = () => {
 
                 <!-- ALERTA DE STOCK INSUFICIENTE / PARCIAL -->
                 <div 
-                    v-if="!isFullyStocked && (request.status === 'pendiente' || request.status === 'aprobado' || request.status === 'observado' || request.status === 'parcial')"
+                    v-if="!isConsumidorRole && !isFullyStocked && (request.status === 'pendiente' || request.status === 'aprobado' || request.status === 'observado' || request.status === 'parcial')"
                     class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 transition-colors duration-300"
                 >
                     <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 flex-shrink-0">
@@ -1373,6 +1631,16 @@ const prevImage = () => {
                                     {{ request.dispatched_at_formatted || 'N/A' }}
                                 </span>
                             </div>
+
+                            <!-- Observaciones de despacho por ítem -->
+                            <div v-for="detail in request.details" :key="'obs-disp-' + detail.id">
+                                <div v-if="detail.observation">
+                                    <span class="block text-[9px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">Obs. Despacho — {{ detail.product_name }}</span>
+                                    <span class="text-xs font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-tight mt-1 block bg-orange-500/5 p-2.5 rounded-xl border border-orange-500/10 whitespace-pre-line leading-relaxed">
+                                        {{ detail.observation }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                         <!-- Bloque de Recepción -->
                         <div v-if="request.status === 'entregado'"
@@ -1398,6 +1666,16 @@ const prevImage = () => {
                                     {{ request.received_at_formatted || 'N/A' }}
                                 </span>
                             </div>
+
+                            <!-- Observaciones de recepción por ítem -->
+                            <div v-for="detail in request.details" :key="'obs-recv-' + detail.id">
+                                <div v-if="detail.receive_observation">
+                                    <span class="block text-[9px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">Obs. Recepción — {{ detail.product_name }}</span>
+                                    <span class="text-xs font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-tight mt-1 block bg-orange-500/5 p-2.5 rounded-xl border border-orange-500/10 whitespace-pre-line leading-relaxed">
+                                        {{ detail.receive_observation }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                         
                         <div v-if="request.notes">
@@ -1414,6 +1692,11 @@ const prevImage = () => {
                     v-if="request.status === 'pendiente' || request.status === 'aprobado' || request.status === 'observado' || request.status === 'parcial' || request.status === 'despachado' || request.status === 'despachado_parcial'"
                     class="bg-white dark:bg-secondary-800 rounded-2xl border border-zinc-200/60 dark:border-secondary-700 shadow-sm p-5 space-y-4 transition-all duration-300"
                 >
+                    <!-- Título Consumidor -->
+                    <h3 v-if="isConsumidorRole && ((request.status === 'pendiente') || (request.status === 'despachado' || request.status === 'despachado_parcial'))" class="text-xs font-black text-zinc-800 dark:text-secondary-100 uppercase tracking-widest border-b border-zinc-100 dark:border-secondary-700 pb-3 mb-2">
+                        Mis Acciones
+                    </h3>
+
                     <!-- ACCIONES DE ADMINISTRADOR -->
                     <div v-if="isAdmin && (request.status === 'pendiente' || request.status === 'observado')" class="space-y-3 pb-4 border-b border-zinc-100 dark:border-secondary-700">
                         <span class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1">Acciones de Administración</span>
@@ -1430,7 +1713,8 @@ const prevImage = () => {
                         </button>
                     </div>
 
-                    <h3 class="text-xs font-black text-zinc-800 dark:text-secondary-100 uppercase tracking-widest border-b border-zinc-100 dark:border-secondary-700 pb-3 mb-2">
+                    <!-- Título Almacén (solo para roles de almacén) -->
+                    <h3 v-if="!isConsumidorRole" class="text-xs font-black text-zinc-800 dark:text-secondary-100 uppercase tracking-widest border-b border-zinc-100 dark:border-secondary-700 pb-3 mb-2">
                         Acciones de Almacén
                     </h3>
 
@@ -1458,7 +1742,7 @@ const prevImage = () => {
                         Solicitar Compra de Faltantes
                     </button>
 
-                    <!-- Despachar stock (desde pendiente, aprobado o parcial) -->
+                    <!-- Despachar stock (solo si aprobado o despacho parcial) -->
                     <button 
                         v-if="canUserDispatch && hasAnyStockToDispatch"
                         @click="handleDispatch"
@@ -1470,9 +1754,9 @@ const prevImage = () => {
                         Despachar Stock
                     </button>
 
-                    <!-- Cancelar solicitud -->
+                    <!-- Cancelar solicitud - Solo Consumidor en pendiente -->
                     <button 
-                        v-if="request.status === 'pendiente' || request.status === 'aprobado' || request.status === 'observado'"
+                        v-if="isConsumidorRole && request.status === 'pendiente'"
                         @click="handleCancel"
                         class="w-full py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 border border-rose-100"
                     >

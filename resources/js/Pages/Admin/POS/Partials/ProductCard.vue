@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 
 const props = defineProps({
     product: Object,
@@ -8,6 +9,14 @@ const props = defineProps({
 
 const emit = defineEmits(['add']);
 
+const page = usePage();
+
+const isConsumerView = computed(() => {
+    if (props.operationType !== 'consumption') return false;
+    const roles = page.props.auth?.user?.roles || [];
+    return roles.includes('Consumidor') || roles.includes('consumidor');
+});
+
 const availableQty = computed(() => {
     const physical = parseFloat(props.product.stocks?.[0]?.quantity || 0);
     const reserved = parseFloat(props.product.reserved_quantity || 0);
@@ -15,12 +24,16 @@ const availableQty = computed(() => {
 });
 
 const hasStock = computed(() => availableQty.value > 0);
+
+const myReserved = computed(() => {
+    return Math.floor(parseFloat(props.product.my_reserved_quantity || 0));
+});
 </script>
 
 <template>
     <div 
         @click="hasStock ? $emit('add', product) : null"
-        :title="operationType === 'consumption' ? `${product.name}\nStock disponible: ${Math.floor(availableQty)}` : `${product.name}\nPrecio: ${parseFloat(product.price).toFixed(2)} Bs.\nStock disponible: ${Math.floor(availableQty)}`"
+        :title="isConsumerView ? product.name : (operationType === 'consumption' ? `${product.name}\nStock disponible: ${Math.floor(availableQty)}` : `${product.name}\nPrecio: ${parseFloat(product.price).toFixed(2)} Bs.\nStock disponible: ${Math.floor(availableQty)}`)"
         class="relative rounded-xl sm:rounded-2xl overflow-hidden flex flex-col transition-all duration-300 group bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 cursor-pointer"
         :class="{ 'opacity-60 cursor-not-allowed': !hasStock }"
     >
@@ -57,21 +70,24 @@ const hasStock = computed(() => availableQty.value > 0);
                 </div>
             </div>
 
-            <!-- Badge Stock -->
+            <!-- Badge Stock / Disponibilidad -->
             <div class="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
-                <div 
-                    :class="hasStock ? 'bg-emerald-600' : 'bg-rose-500'"
-                    class="text-white w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-black shadow-md border-2 border-white dark:border-secondary-800"
-                >
-                    {{ Math.floor(availableQty) }}
-                </div>
-            </div>
-
-            <!-- Badge Reservado -->
-            <div v-if="parseFloat(product.reserved_quantity) > 0" class="absolute top-2 left-2 pointer-events-none">
-                <span class="px-1.5 py-0.5 bg-orange-500 text-white text-[8px] font-black uppercase rounded shadow-sm border border-orange-400">
-                    Res: {{ Math.floor(product.reserved_quantity) }}
-                </span>
+                <template v-if="isConsumerView">
+                    <span 
+                        :class="hasStock ? 'bg-emerald-600' : 'bg-rose-500'"
+                        class="px-1.5 py-0.5 text-white text-[8px] font-black uppercase rounded-full shadow-sm border-2 border-white dark:border-secondary-800"
+                    >
+                        {{ hasStock ? 'Disponible' : 'No disponible' }}
+                    </span>
+                </template>
+                <template v-else>
+                    <div 
+                        :class="hasStock ? 'bg-emerald-600' : 'bg-rose-500'"
+                        class="text-white w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-black shadow-md border-2 border-white dark:border-secondary-800"
+                    >
+                        {{ Math.floor(availableQty) }}
+                    </div>
+                </template>
             </div>
         </div>
 
@@ -82,9 +98,19 @@ const hasStock = computed(() => availableQty.value > 0);
             </div>
             <h3 class="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-secondary-50 leading-snug mb-1 line-clamp-2 uppercase">{{ product.name }}</h3>
             
+            <!-- Badge Reservado / Mis Reservados -->
+            <div v-if="isConsumerView && myReserved > 0" class="mt-1 self-start">
+                <span class="px-1.5 py-0.5 bg-orange-500 text-white text-[9px] font-bold uppercase rounded shadow-sm border border-orange-400">
+                    Mis reservados: {{ myReserved }}
+                </span>
+            </div>
+            <div v-else-if="!isConsumerView && parseFloat(product.reserved_quantity) > 0" class="mt-1 self-start">
+                <span class="px-1.5 py-0.5 bg-orange-500 text-white text-[9px] font-bold uppercase rounded shadow-sm border border-orange-400">
+                    Res: {{ Math.floor(product.reserved_quantity) }}
+                </span>
+            </div>
 
-
-            <div v-if="operationType !== 'consumption'" class="mt-auto flex items-center justify-between">
+            <div v-if="operationType !== 'consumption'" class="mt-auto flex items-center justify-between pt-2">
                 <span class="text-sm sm:text-lg font-extrabold text-emerald-600 uppercase leading-none">Bs. {{ parseFloat(product.price).toFixed(2) }}</span>
             </div>
         </div>

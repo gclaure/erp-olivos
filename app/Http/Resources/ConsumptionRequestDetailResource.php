@@ -66,6 +66,7 @@ class ConsumptionRequestDetailResource extends JsonResource
             'quantity_delivered' => (float) $this->quantity_delivered,
             'quantity_received' => $this->quantity_received !== null ? (float) $this->quantity_received : null,
             'observation' => $this->observation,
+            'receive_observation' => $this->receive_observation,
             'stock_available' => $stock,
         ];
     }

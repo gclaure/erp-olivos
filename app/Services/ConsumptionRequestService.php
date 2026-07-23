@@ -54,9 +54,13 @@ class ConsumptionRequestService
     /**
      * Despacha el stock físico disponible para una solicitud de consumo.
      */
-    public function dispatchRequest(ConsumptionRequest $consumptionRequest, array $dispatchQuantities = [], array $observations = []): ConsumptionRequest
-    {
-        return $this->dispatchService->dispatch($consumptionRequest, $dispatchQuantities, $observations);
+    public function dispatchRequest(
+        ConsumptionRequest $consumptionRequest,
+        array $dispatchQuantities = [],
+        array $observations = [],
+        ?string $dispatchObservation = null
+    ): ConsumptionRequest {
+        return $this->dispatchService->dispatch($consumptionRequest, $dispatchQuantities, $observations, $dispatchObservation);
     }
 
     /**
@@ -91,27 +95,27 @@ class ConsumptionRequestService
      * @param ConsumptionRequest $consumptionRequest
      * @param array<string, float> $receivedQuantities Array asociativo [detail_id => quantity]
      * @param array<string, string> $observations Array asociativo [detail_id => observation]
+     * @param array<string, string> $receiveObservations Array asociativo [detail_id => receive_observation]
      */
     public function receiveRequest(
         ConsumptionRequest $consumptionRequest,
         array $receivedQuantities = [],
-        array $observations = []
+        array $observations = [],
+        array $receiveObservations = []
     ): ConsumptionRequest {
         if (!in_array($consumptionRequest->status, ['despachado', 'despachado_parcial'])) {
             throw new Exception("Solo se pueden recepcionar solicitudes en estado despachado.");
         }
 
-        return DB::transaction(function () use ($consumptionRequest, $receivedQuantities, $observations) {
+        return DB::transaction(function () use ($consumptionRequest, $receivedQuantities, $observations, $receiveObservations) {
             $consumptionRequest->loadMissing('details.product');
 
             foreach ($consumptionRequest->details as $detail) {
-                // Si viene una cantidad específica en el array, la usamos. De lo contrario, por defecto es lo despachado.
                 $qty = isset($receivedQuantities[$detail->id]) ? (float) $receivedQuantities[$detail->id] : (float) $detail->quantity_delivered;
                 if ($qty < 0) {
                     throw new Exception("La cantidad recibida no puede ser negativa.");
                 }
 
-                // Validar discrepancia contra la cantidad solicitada originalmente
                 $isDifferent = abs($qty - (float) $detail->quantity_requested) >= 0.01;
                 $observation = $observations[$detail->id] ?? null;
 
@@ -120,7 +124,8 @@ class ConsumptionRequestService
                 }
 
                 $detail->quantity_received = $qty;
-                $detail->observation = $isDifferent ? trim((string)$observation) : null;
+                $detail->observation = $isDifferent ? trim((string)$observation) : $detail->observation;
+                $detail->receive_observation = trim((string)($receiveObservations[$detail->id] ?? '')) ?: null;
                 $detail->save();
             }
 

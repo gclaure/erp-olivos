@@ -22,13 +22,14 @@ class ConsumptionRequestDispatchService
     public function dispatch(
         ConsumptionRequest $consumptionRequest,
         array $dispatchQuantities = [],
-        array $observations = []
+        array $observations = [],
+        ?string $dispatchObservation = null
     ): ConsumptionRequest {
-        if (!in_array($consumptionRequest->status, ['pendiente', 'aprobado', 'despachado_parcial'], true)) {
-            throw new Exception("Solo se pueden despachar solicitudes en estado pendiente o con despacho parcial.");
+        if (!in_array($consumptionRequest->status, ['aprobado', 'despachado_parcial'], true)) {
+            throw new Exception("Solo se pueden despachar solicitudes aprobadas o con despacho parcial.");
         }
 
-        return DB::transaction(function () use ($consumptionRequest, $dispatchQuantities, $observations) {
+        return DB::transaction(function () use ($consumptionRequest, $dispatchQuantities, $observations, $dispatchObservation) {
             $consumptionRequest->loadMissing('details.product');
             $warehouseId = $consumptionRequest->warehouse_id;
             $allDispatchedCompletely = true;
@@ -172,6 +173,7 @@ class ConsumptionRequestDispatchService
 
             $consumptionRequest->dispatched_by_user_id = Auth::id();
             $consumptionRequest->dispatched_at = now();
+            $consumptionRequest->dispatch_observation = $dispatchObservation ? trim($dispatchObservation) : null;
             $consumptionRequest->save();
 
             return $consumptionRequest;

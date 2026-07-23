@@ -19,6 +19,7 @@ class ConsumptionRequestDetail extends Model
         'quantity_delivered',
         'quantity_received',
         'observation',
+        'receive_observation',
     ];
 
     protected $casts = [

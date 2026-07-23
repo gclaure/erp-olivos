@@ -18,7 +18,8 @@ class ConsumptionRequestUpdated implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(
-        public readonly ConsumptionRequest $consumptionRequest
+        public readonly ConsumptionRequest $consumptionRequest,
+        public readonly string $action = 'updated'
     ) {
         $this->consumptionRequest->loadMissing('warehouse');
     }
@@ -63,6 +64,7 @@ class ConsumptionRequestUpdated implements ShouldBroadcastNow
         ]);
 
         return [
+            'action' => $this->action,
             'request' => (new ConsumptionRequestResource($this->consumptionRequest))->toArray(request()),
         ];
     }

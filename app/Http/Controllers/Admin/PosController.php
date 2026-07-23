@@ -197,6 +197,15 @@ class PosController extends Controller
             ->whereIn('consumption_requests.status', ['pendiente', 'parcial', 'despachado_parcial', 'compras_generado'])
             ->selectRaw('COALESCE(SUM(consumption_request_details.quantity_requested - consumption_request_details.quantity_delivered), 0)');
 
+        $userId = $request->user()?->id;
+        $myConsumptionReservedSubquery = \App\Models\ConsumptionRequestDetail::query()
+            ->join('consumption_requests', 'consumption_requests.id', '=', 'consumption_request_details.consumption_request_id')
+            ->whereColumn('consumption_request_details.product_id', 'products.id')
+            ->where('consumption_requests.warehouse_id', $warehouseId)
+            ->where('consumption_requests.user_id', $userId ?? 0)
+            ->whereIn('consumption_requests.status', ['pendiente', 'parcial', 'despachado_parcial', 'compras_generado'])
+            ->selectRaw('COALESCE(SUM(consumption_request_details.quantity_requested - consumption_request_details.quantity_delivered), 0)');
+
         $expirationSubquery = \App\Models\Kardex::select('expiration_date')
             ->whereColumn('product_id', 'products.id')
             ->where('warehouse_id', $warehouseId)
@@ -224,6 +233,7 @@ class PosController extends Controller
             ->addSelect(['unit_cost' => $kardexSubquery])
             ->addSelect(['sales_reserved' => $salesReservedSubquery])
             ->addSelect(['consumption_reserved' => $consumptionReservedSubquery])
+            ->addSelect(['my_consumption_reserved' => $myConsumptionReservedSubquery])
             ->addSelect(['nearest_expiration_date' => $expirationSubquery])
             ->with([
                 'stocks' => function($q) use ($warehouseId) {

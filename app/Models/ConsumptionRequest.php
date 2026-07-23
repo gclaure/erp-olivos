@@ -31,6 +31,7 @@ class ConsumptionRequest extends Model
         'observed_by_user_id',
         'observed_at',
         'observation_notes',
+        'dispatch_observation',
         'cancelled_by_user_id',
         'cancelled_at',
         'cancellation_notes',

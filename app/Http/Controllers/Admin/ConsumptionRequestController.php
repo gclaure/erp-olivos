@@ -178,24 +178,20 @@ class ConsumptionRequestController extends Controller
                     // Reverb no disponible — no interrumpir el flujo
                 }
 
-                // Obtener usuarios con rol de Almacén pertenecientes a la misma sucursal
-                $almacenUsers = User::whereHas('roles', function ($q) {
-                    $q->whereIn('name', ['Almacén', 'almacen', 'Almacen', 'almacén']);
-                })
-                ->where('branch_id', $consumptionRequest->warehouse->branch_id)
-                ->where('is_active', true)
-                ->get();
+                // Obtener destinatarios elegibles: super admin o (Almacén/Admin de la sucursal), activos, sin Consumidor
+                $branchId = $consumptionRequest->warehouse->branch_id;
+                $notificationMessage = "Se ha registrado la solicitud de consumo #{$consumptionRequest->formatted_number} por el área de {$consumptionRequest->requested_by}.";
+
+                $recipients = $this->recipientsForNewConsumptionRequest($branchId, $request->user()->id);
 
                 // Registrar notificación persistente en BD + transmitir por socket
-                foreach ($almacenUsers as $almacenUser) {
-                    // La notificación de BD nunca falla por Reverb
-                    $almacenUser->notify(new NuevaSolicitudConsumoNotification($consumptionRequest));
+                foreach ($recipients as $recipient) {
+                    $recipient->notify(new NuevaSolicitudConsumoNotification($consumptionRequest));
 
-                    // El socket puede fallar silenciosamente si Reverb no está activo
                     try {
                         NuevaNotificacion::dispatch(
-                            (string)$almacenUser->id,
-                            "Se ha registrado la solicitud de consumo #{$consumptionRequest->formatted_number} por el área de {$consumptionRequest->requested_by}.",
+                            (string)$recipient->id,
+                            $notificationMessage,
                             'new_consumption_request'
                         );
                     } catch (\Throwable) {
@@ -270,7 +266,7 @@ class ConsumptionRequestController extends Controller
     public function dispatchRequest(Request $request, ConsumptionRequest $consumptionRequest): RedirectResponse
     {
         $user = auth()->user();
-        $canDispatch = $user ? ($user->hasRole(['Admin', 'admin', 'Administrador', 'administrador', 'Almacén', 'almacen']) || $user->is_super_admin) : false;
+        $canDispatch = $user ? $user->hasRole(['Almacén', 'almacen']) : false;
         if (!$canDispatch) {
             return redirect()->back()->withErrors([
                 'error' => 'No tienes permiso para despachar esta solicitud de consumo.'
@@ -282,6 +278,7 @@ class ConsumptionRequestController extends Controller
             'quantities.*' => 'required|numeric|min:0',
             'observations' => 'nullable|array',
             'observations.*' => 'nullable|string',
+            'dispatch_observation' => 'nullable|string|max:500',
         ]);
 
         try {
@@ -289,26 +286,20 @@ class ConsumptionRequestController extends Controller
             $updatedRequest = $this->consumptionRequestService->dispatchRequest(
                 $consumptionRequest,
                 $request->input('quantities'),
-                $request->input('observations', [])
+                $request->input('observations', []),
+                $request->input('dispatch_observation')
             );
 
-            // Obtener usuarios consumidores de la misma área de la solicitud de consumo
-            $consumidores = \App\Models\User::whereHas('roles', function ($q) {
-                $q->whereIn('name', ['Consumidor', 'consumidor']);
-            })
-            ->where('area', $updatedRequest->requested_by)
-            ->where('is_active', true)
-            ->get();
+            // Notificar al creador que su solicitud fue despachada
+            $creator = $updatedRequest->user;
+            if ($creator && $creator->is_active) {
+                $notification = new \App\Notifications\SolicitudConsumoDespachadaNotification($updatedRequest);
+                $creator->notify($notification);
 
-            // Enviar notificación a cada consumidor de esa área
-            foreach ($consumidores as $consumidor) {
-                $consumidor->notify(new \App\Notifications\SolicitudConsumoDespachadaNotification($updatedRequest));
-
-                // Socket privado del consumidor para notificación browser / sonido / campana
                 try {
                     \App\Events\NuevaNotificacion::dispatch(
-                        (string)$consumidor->id,
-                        "Tu solicitud de consumo #{$updatedRequest->formatted_number} del área de {$updatedRequest->requested_by} ha sido despachada por almacén.",
+                        (string)$creator->id,
+                        "Tu solicitud de consumo #{$updatedRequest->formatted_number} del área de {$updatedRequest->requested_by} ha sido despachada por almacén y está lista para recepcionar.",
                         'consumption_request_dispatched'
                     );
                 } catch (\Throwable) {
@@ -318,7 +309,7 @@ class ConsumptionRequestController extends Controller
 
             // Socket global de sucursal para actualizar la tabla del listado reactivamente
             try {
-                event(new \App\Events\ConsumptionRequestUpdated($updatedRequest));
+                event(new \App\Events\ConsumptionRequestUpdated($updatedRequest, 'dispatched'));
             } catch (\Throwable) {
                 // Reverb no disponible — no interrumpir el flujo
             }
@@ -378,7 +369,7 @@ class ConsumptionRequestController extends Controller
 
             // Disparar evento de actualización en tiempo real por socket
             try {
-                event(new \App\Events\ConsumptionRequestUpdated($consumptionRequest));
+                event(new \App\Events\ConsumptionRequestUpdated($consumptionRequest, 'observed'));
             } catch (\Throwable) {
                 // Silencioso si Reverb no está disponible
             }
@@ -394,8 +385,9 @@ class ConsumptionRequestController extends Controller
         try {
             $receivedQuantities = $request->input('received_quantities', []);
             $observations = $request->input('observations', []);
+            $receiveObservations = $request->input('receive_observations', []);
             
-            $updatedRequest = $this->consumptionRequestService->receiveRequest($consumptionRequest, $receivedQuantities, $observations);
+            $updatedRequest = $this->consumptionRequestService->receiveRequest($consumptionRequest, $receivedQuantities, $observations, $receiveObservations);
 
             // Cargar relaciones necesarias
             $updatedRequest->loadMissing(['warehouse', 'receivedByUser', 'details.product.unitOfMeasure']);
@@ -404,21 +396,36 @@ class ConsumptionRequestController extends Controller
             $notification = new \App\Notifications\SolicitudConsumoRecepcionadaNotification($updatedRequest);
             $message = $notification->getMessage();
 
-            // Obtener usuarios con rol de Almacén pertenecientes a la misma sucursal
-            $almacenUsers = User::whereHas('roles', function ($q) {
-                $q->whereIn('name', ['Almacén', 'almacen', 'Almacen', 'almacén']);
+            // Notificar a Admin/Administrador de la sucursal + super admin (deduplicados, activos)
+            $branchId = $updatedRequest->warehouse->branch_id;
+            $adminUsers = User::whereHas('roles', function ($q) {
+                $q->whereIn('name', ['Admin', 'admin', 'Administrador', 'administrador']);
             })
-            ->where('branch_id', $updatedRequest->warehouse->branch_id)
+            ->where('branch_id', $branchId)
             ->where('is_active', true)
-            ->get();
+            ->pluck('id')
+            ->toArray();
 
-            // Registrar notificación persistente en BD + transmitir por socket
-            foreach ($almacenUsers as $almacenUser) {
-                $almacenUser->notify($notification);
+            // Agregar super admins activos
+            $superAdminIds = User::where('is_super_admin', true)
+                ->where('is_active', true)
+                ->pluck('id')
+                ->toArray();
+
+            $recipientIds = array_unique(array_merge($adminUsers, $superAdminIds));
+
+            $notification = new \App\Notifications\SolicitudConsumoRecepcionadaNotification($updatedRequest);
+            $message = $notification->getMessage();
+
+            foreach ($recipientIds as $recipientId) {
+                $recipient = User::find($recipientId);
+                if (!$recipient) continue;
+
+                $recipient->notify($notification);
 
                 try {
                     \App\Events\NuevaNotificacion::dispatch(
-                        (string)$almacenUser->id,
+                        (string)$recipientId,
                         $message,
                         'consumption_request_received'
                     );
@@ -429,7 +436,7 @@ class ConsumptionRequestController extends Controller
 
             // Socket global de sucursal para actualizar la tabla del listado reactivamente
             try {
-                event(new \App\Events\ConsumptionRequestUpdated($updatedRequest));
+                event(new \App\Events\ConsumptionRequestUpdated($updatedRequest, 'received'));
             } catch (\Throwable) {
                 // Reverb no disponible
             }
@@ -460,6 +467,23 @@ class ConsumptionRequestController extends Controller
         try {
             $notes = $request->input('observation_notes');
             $this->consumptionRequestService->approveRequest($consumptionRequest, (string)$user->id, $notes);
+
+            // Notificar al creador que su solicitud fue aprobada
+            $creator = $consumptionRequest->user;
+            if ($creator && $creator->is_active) {
+                $notification = new \App\Notifications\SolicitudConsumoAprobadaNotification($consumptionRequest);
+                $creator->notify($notification);
+
+                try {
+                    \App\Events\NuevaNotificacion::dispatch(
+                        (string)$creator->id,
+                        $notification->toArray($creator)['message'],
+                        'consumption_request_approved'
+                    );
+                } catch (\Throwable) {
+                    // Reverb no disponible
+                }
+            }
 
             // Disparar evento de actualización en tiempo real por socket
             try {
@@ -534,5 +558,29 @@ class ConsumptionRequestController extends Controller
         $pdf->setPaper('letter', 'portrait');
 
         return $pdf->stream("Solicitud-Consumo-{$consumptionRequest->formatted_number}.pdf");
+    }
+
+    /**
+     * Resolve notification recipients for a new consumption request.
+     * Super admins always included; branch admins and warehouse users from the same branch; excludes consumers.
+     */
+    private function recipientsForNewConsumptionRequest(string $branchId, string $creatorId): \Illuminate\Support\Collection
+    {
+        return User::where(function ($query) use ($branchId) {
+                $query->where('is_super_admin', true)
+                    ->orWhere(function ($sub) use ($branchId) {
+                        $sub->where('branch_id', $branchId)
+                            ->whereHas('roles', function ($roleQuery) {
+                                $roleQuery->whereIn('name', ['Almacén', 'almacen', 'Almacen', 'almacén', 'Admin', 'admin', 'Administrador', 'administrador']);
+                            });
+                    });
+            })
+            ->where('is_active', true)
+            ->whereDoesntHave('roles', function ($query) {
+                $query->whereIn('name', ['Consumidor', 'consumidor']);
+            })
+            ->where('id', '!=', $creatorId)
+            ->get()
+            ->unique('id');
     }
 }
