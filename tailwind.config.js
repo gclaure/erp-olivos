@@ -23,46 +23,61 @@ export default {
                     primaryHover: '#991b1b', /* red-800 */
                     secondary: '#1e3a8a', /* blue-900 (Midnight Blue) */
                 },
-                // El color de acento índigo/púrpura de la imagen
+                // Acento de marca — verde olivo en claro, índigo en dark (mode-aware)
                 primary: {
-                    50: '#f5f3ff',
-                    100: '#ede9fe',
-                    200: '#ddd6fe',
-                    300: '#c4b5fd',
-                    400: '#a78bfa',
-                    500: '#8b5cf6',
-                    600: '#5A4CFA', // Color exacto del botón "Nueva Unidad"
-                    700: '#4c1d95',
-                    800: '#4338ca',
-                    900: '#312e81',
-                    950: '#1e1b4b',
+                    50: 'rgb(var(--color-primary-50) / <alpha-value>)',
+                    100: 'rgb(var(--color-primary-100) / <alpha-value>)',
+                    200: 'rgb(var(--color-primary-200) / <alpha-value>)',
+                    300: 'rgb(var(--color-primary-300) / <alpha-value>)',
+                    400: 'rgb(var(--color-primary-400) / <alpha-value>)',
+                    500: 'rgb(var(--color-primary-500) / <alpha-value>)',
+                    600: 'rgb(var(--color-primary-600) / <alpha-value>)',
+                    700: 'rgb(var(--color-primary-700) / <alpha-value>)',
+                    800: 'rgb(var(--color-primary-800) / <alpha-value>)',
+                    900: 'rgb(var(--color-primary-900) / <alpha-value>)',
+                    950: 'rgb(var(--color-primary-950) / <alpha-value>)',
                 },
-                // La paleta de grises azulados para el modo oscuro
+                // Escala índigo por defecto de Tailwind, re-mapeada por variables
+                indigo: {
+                    50: 'rgb(var(--color-indigo-50) / <alpha-value>)',
+                    100: 'rgb(var(--color-indigo-100) / <alpha-value>)',
+                    200: 'rgb(var(--color-indigo-200) / <alpha-value>)',
+                    300: 'rgb(var(--color-indigo-300) / <alpha-value>)',
+                    400: 'rgb(var(--color-indigo-400) / <alpha-value>)',
+                    500: 'rgb(var(--color-indigo-500) / <alpha-value>)',
+                    600: 'rgb(var(--color-indigo-600) / <alpha-value>)',
+                    700: 'rgb(var(--color-indigo-700) / <alpha-value>)',
+                    800: 'rgb(var(--color-indigo-800) / <alpha-value>)',
+                    900: 'rgb(var(--color-indigo-900) / <alpha-value>)',
+                    950: 'rgb(var(--color-indigo-950) / <alpha-value>)',
+                },
+                // Escala de estructura (slate en claro, olivo oscuro en dark) — mode-aware
                 secondary: {
-                    50: '#f8fafc',
-                    100: '#f1f5f9',
-                    200: '#e2e8f0',
-                    300: '#cbd5e1',
-                    400: '#94a3b8',
-                    500: '#64748b',
-                    600: '#475569',
-                    700: '#333A48', // Bordes y divisores
-                    800: '#222530', // Superficie de tarjetas y tablas
-                    900: '#171923', // Fondo principal (Body)
-                    950: '#0f172a',
+                    50: 'rgb(var(--color-secondary-50) / <alpha-value>)',
+                    100: 'rgb(var(--color-secondary-100) / <alpha-value>)',
+                    200: 'rgb(var(--color-secondary-200) / <alpha-value>)',
+                    300: 'rgb(var(--color-secondary-300) / <alpha-value>)',
+                    400: 'rgb(var(--color-secondary-400) / <alpha-value>)',
+                    500: 'rgb(var(--color-secondary-500) / <alpha-value>)',
+                    600: 'rgb(var(--color-secondary-600) / <alpha-value>)',
+                    700: 'rgb(var(--color-secondary-700) / <alpha-value>)',
+                    800: 'rgb(var(--color-secondary-800) / <alpha-value>)',
+                    900: 'rgb(var(--color-secondary-900) / <alpha-value>)',
+                    950: 'rgb(var(--color-secondary-950) / <alpha-value>)',
                 },
+                // Neutros — cálidos en claro, zinc actual en dark (mode-aware)
                 zinc: {
-                    50: '#fafafa',
-                    100: '#f5f5f5',
-                    200: '#e5e5e5',
-                    300: '#d4d4d4',
-                    400: '#a3a3a3',
-                    500: '#737373',
-                    600: '#525252',
-                    700: '#404040',
-                    800: '#262626',
-                    900: '#171717',
-                    950: '#0a0a0a',
+                    50: 'rgb(var(--color-zinc-50) / <alpha-value>)',
+                    100: 'rgb(var(--color-zinc-100) / <alpha-value>)',
+                    200: 'rgb(var(--color-zinc-200) / <alpha-value>)',
+                    300: 'rgb(var(--color-zinc-300) / <alpha-value>)',
+                    400: 'rgb(var(--color-zinc-400) / <alpha-value>)',
+                    500: 'rgb(var(--color-zinc-500) / <alpha-value>)',
+                    600: 'rgb(var(--color-zinc-600) / <alpha-value>)',
+                    700: 'rgb(var(--color-zinc-700) / <alpha-value>)',
+                    800: 'rgb(var(--color-zinc-800) / <alpha-value>)',
+                    900: 'rgb(var(--color-zinc-900) / <alpha-value>)',
+                    950: 'rgb(var(--color-zinc-950) / <alpha-value>)',
                 },
 
                 /* ── Colores Semánticos (CSS Variables) ── */

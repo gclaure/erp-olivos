@@ -95,9 +95,7 @@ const submit = () => {
 
                         <div class="flex flex-col items-center p-6 bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl border border-zinc-100 dark:border-zinc-800 text-center">
                             <div class="relative group mb-4">
-                                <img v-if="form.logo" :src="URL.createObjectURL(form.logo)" class="size-32 object-contain rounded-xl border border-white dark:border-zinc-700 p-2 bg-white shadow-sm" />
-                                <img v-else-if="company?.logo_url" :src="company.logo_url" class="size-32 object-contain rounded-xl border border-white dark:border-zinc-700 p-2 bg-white shadow-sm" />
-                                <img v-else src="/img/logo-inventory.png" class="size-32 object-contain rounded-xl border border-white dark:border-zinc-700 p-2 bg-white shadow-sm" />
+                                <img src="/img/logo-light.png" class="size-32 object-contain rounded-xl border border-white dark:border-zinc-700 p-2 bg-white shadow-sm" />
                                 
                                 <div v-if="form.processing" class="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center">
                                     <svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

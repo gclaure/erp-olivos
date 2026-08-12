@@ -6,46 +6,131 @@
 
     /* ══════════════════════════════════════════════
        SISTEMA DE COLORES GLOBAL — LIGHT MODE
+       Paleta de identidad olivo/crema
        ══════════════════════════════════════════════ */
     :root {
-        --color-background: 250 250 250;       /* zinc-50 */
+        --color-background: 250 249 245;       /* #FAF9F5 warm off-white */
         --color-surface: 255 255 255;           /* white */
-        --color-border: 229 229 229;            /* zinc-200 */
+        --color-border: 229 226 217;            /* #E5E2D9 warm border */
 
-        --color-text-primary: 23 23 23;         /* zinc-900 */
-        --color-text-secondary: 82 82 82;       /* zinc-600 */
-        --color-text-muted: 163 163 163;        /* zinc-400 */
+        --color-text-primary: 8 8 8;            /* #080808 near-black */
+        --color-text: 8 8 8;                    /* alias de text-primary */
+        --color-text-secondary: 107 107 103;    /* #6B6B67 */
+        --color-text-muted: 163 163 163;        /* zinc-400 (sin cambio) */
 
-        --color-primary: 79 70 229;             /* indigo-600 */
-        --color-primary-hover: 67 56 202;       /* indigo-700 */
-        --color-primary-light: 224 231 255;     /* indigo-100 */
+        --color-primary: 115 172 50;            /* #73AC32 olive green */
+        --color-primary-hover: 63 107 32;       /* #3F6B20 primary-dark */
+        --color-primary-dark: 63 107 32;        /* alias de primary-hover */
+        --color-primary-light: 168 201 122;     /* #A8C97A */
 
-        --color-success: 16 185 129;            /* emerald-500 */
-        --color-warning: 245 158 11;            /* amber-500 */
-        --color-danger: 244 63 94;              /* rose-500 */
-        --color-info: 14 165 233;               /* sky-500 */
+        --color-cream: 241 237 226;             /* #F1EDE2 */
+        --color-black: 8 8 8;                   /* #080808 */
+        --color-white: 255 255 255;             /* white */
+
+        --color-success: 16 185 129;            /* emerald-500 (sin cambio) */
+        --color-warning: 245 158 11;            /* amber-500 (sin cambio) */
+        --color-danger: 244 63 94;              /* rose-500 (sin cambio) */
+        --color-info: 14 165 233;               /* sky-500 (sin cambio) */
+
+        /* ── Rama zinc — neutros cálidos (light) ── */
+        --color-zinc-50: 250 249 245;           /* #FAF9F5 background */
+        --color-zinc-100: 241 237 226;          /* #F1EDE2 cream */
+        --color-zinc-200: 229 226 217;          /* #E5E2D9 border */
+        --color-zinc-300: 216 212 200;          /* #D8D4C8 */
+        --color-zinc-400: 185 183 175;          /* #B9B7AF muted */
+        --color-zinc-500: 138 136 128;          /* #8A8880 */
+        --color-zinc-600: 107 107 103;          /* #6B6B67 text-secondary */
+        --color-zinc-700: 64 64 64;             /* sin cambio */
+        --color-zinc-800: 38 38 38;             /* sin cambio */
+        --color-zinc-900: 8 8 8;                /* #080808 text/black */
+        --color-zinc-950: 10 10 10;             /* sin cambio */
+
+        /* ── Rama indigo/primary — verde olivo (light) ── */
+        --color-indigo-50: 244 249 236;         /* #F4F9EC */
+        --color-indigo-100: 232 242 217;        /* #E8F2D9 */
+        --color-indigo-200: 209 229 179;        /* #D1E5B3 */
+        --color-indigo-300: 168 201 122;        /* #A8C97A primary-light */
+        --color-indigo-400: 141 187 82;         /* #8DBB52 */
+        --color-indigo-500: 115 172 50;         /* #73AC32 primary */
+        --color-indigo-600: 92 140 40;          /* #5C8C28 */
+        --color-indigo-700: 63 107 32;          /* #3F6B20 primary-dark */
+        --color-indigo-800: 47 81 24;           /* #2F5118 */
+        --color-indigo-900: 34 60 18;           /* #223C12 */
+        --color-indigo-950: 20 35 7;            /* #142307 */
+
+        --color-primary-50: 244 249 236;
+        --color-primary-100: 232 242 217;
+        --color-primary-200: 209 229 179;
+        --color-primary-300: 168 201 122;
+        --color-primary-400: 141 187 82;
+        --color-primary-500: 115 172 50;
+        --color-primary-600: 92 140 40;
+        --color-primary-700: 63 107 32;
+        --color-primary-800: 47 81 24;
+        --color-primary-900: 34 60 18;
+        --color-primary-950: 20 35 7;
+
+        /* ── Rama secondary — slate actual (light) ── */
+        --color-secondary-50: 248 250 252;      /* #F8FAFC */
+        --color-secondary-100: 241 245 249;     /* #F1F5F9 */
+        --color-secondary-200: 226 232 240;     /* #E2E8F0 */
+        --color-secondary-300: 203 213 225;     /* #CBD5E1 */
+        --color-secondary-400: 148 163 184;     /* #94A3B8 */
+        --color-secondary-500: 100 116 139;     /* #64748B */
+        --color-secondary-600: 71 85 105;       /* #475569 */
+        --color-secondary-700: 51 58 72;        /* #333A48 bordes/divisores */
+        --color-secondary-800: 34 37 48;        /* #222530 superficie */
+        --color-secondary-900: 23 25 35;        /* #171923 body */
+        --color-secondary-950: 15 23 42;        /* #0F172A */
     }
 
     /* ══════════════════════════════════════════════
        SISTEMA DE COLORES GLOBAL — DARK MODE
+       Identidad olivo (derivada de la paleta de marca)
        ══════════════════════════════════════════════ */
     .dark {
-        --color-background: 31 41 55;           /* gray-800 */
-        --color-surface: 55 65 81;              /* gray-700 */
-        --color-border: 75 85 99;               /* gray-600 */
+        --color-background: 21 24 18;           /* #151812 body */
+        --color-surface: 38 43 32;              /* #262B20 cards */
+        --color-border: 60 67 53;               /* #3C4335 */
 
-        --color-text-primary: 255 255 255;      /* white */
-        --color-text-secondary: 156 163 175;    /* gray-400 */
-        --color-text-muted: 107 114 128;        /* gray-500 */
+        --color-text-primary: 241 237 226;      /* crema #F1EDE2 */
+        --color-text-secondary: 138 148 128;    /* #8A9480 */
+        --color-text-muted: 110 120 104;        /* #6E7868 */
 
-        --color-primary: 99 102 241;            /* indigo-500 */
-        --color-primary-hover: 129 140 248;     /* indigo-400 */
-        --color-primary-light: 49 46 129;       /* indigo-900 */
+        --color-primary: 115 172 50;            /* #73AC32 olive */
+        --color-primary-hover: 141 187 82;      /* #8DBB52 (más claro sobre oscuro) */
+        --color-primary-light: 168 201 122;     /* #A8C97A */
 
-        --color-success: 52 211 153;            /* emerald-400 */
-        --color-warning: 251 191 36;            /* amber-400 */
-        --color-danger: 251 113 133;            /* rose-400 */
-        --color-info: 56 189 248;               /* sky-400 */
+        --color-success: 52 211 153;            /* emerald-400 (sin cambio) */
+        --color-warning: 251 191 36;            /* amber-400 (sin cambio) */
+        --color-danger: 251 113 133;            /* rose-400 (sin cambio) */
+        --color-info: 56 189 248;               /* sky-400 (sin cambio) */
+
+        /* ── Rama secondary — olivo oscuro ── */
+        --color-secondary-50: 241 237 226;      /* #F1EDE2 crema */
+        --color-secondary-100: 228 223 210;     /* #E4DFD2 */
+        --color-secondary-200: 201 205 189;     /* #C9CDBD */
+        --color-secondary-300: 169 177 156;     /* #A9B19C */
+        --color-secondary-400: 138 148 128;     /* #8A9480 texto secundario */
+        --color-secondary-500: 110 120 104;     /* #6E7868 */
+        --color-secondary-600: 86 95 80;        /* #565F50 */
+        --color-secondary-700: 60 67 53;        /* #3C4335 bordes/divisores */
+        --color-secondary-800: 38 43 32;        /* #262B20 superficie */
+        --color-secondary-900: 21 24 18;        /* #151812 body */
+        --color-secondary-950: 11 13 8;         /* #0B0D08 */
+
+        /* ── Rama zinc — neutros olivo-tinted (dark) ── */
+        --color-zinc-50: 250 249 245;           /* #FAF9F5 */
+        --color-zinc-100: 241 237 226;          /* #F1EDE2 crema */
+        --color-zinc-200: 229 226 217;          /* #E5E2D9 */
+        --color-zinc-300: 205 210 194;          /* #CDD2C2 texto medio */
+        --color-zinc-400: 155 166 143;          /* #9BA68F texto atenuado */
+        --color-zinc-500: 120 130 111;          /* #78826F */
+        --color-zinc-600: 92 102 84;            /* #5C6654 */
+        --color-zinc-700: 66 74 59;             /* #424A3B hover */
+        --color-zinc-800: 38 43 32;             /* #262B20 superficie */
+        --color-zinc-900: 23 26 18;             /* #171A12 */
+        --color-zinc-950: 12 15 9;              /* #0C0F09 */
     }
 
     *,
@@ -67,10 +152,10 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #d4d4d8;
+    background: #d8d4c8;
     border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #a1a1aa;
+    background: #b9b7af;
 }

@@ -102,9 +102,9 @@ class HandleInertiaRequests extends Middleware
                         [],
                         [
                             'store_name' => \App\Facades\CompanyFacade::getCompany()?->name ?? config('app.name'),
-                            'primary_color' => '#4f46e5',
-                            'secondary_color' => '#0f172a',
-                            'tertiary_color' => '#1e293b',
+                            'primary_color' => '#73ac32',
+                            'secondary_color' => '#080808',
+                            'tertiary_color' => '#080808',
                             'background_color' => '#0f172a',
                             'card_color' => '#1e293b',
                             'text_color' => '#f8fafc',

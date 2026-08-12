@@ -134,14 +134,10 @@ watch(() => page.props.flash, (flash) => {
                  :class="sidebarMini ? 'px-2' : 'px-6'">
                 <Link :href="route('admin.dashboard')" class="flex flex-col items-center justify-center w-full gap-4 group">
                     <div class="w-full h-16 flex items-center justify-center px-4">
-                        <img :src="company?.logo_url || '/img/logo-inventory.png'" 
-                             class="max-w-full max-h-full object-contain transition-all duration-700 group-hover:scale-110" 
+                        <img src="/img/logo-dark.png" 
+                             class="max-w-full max-h-full object-contain animate-heartbeat" 
                              :alt="company?.name">
                     </div>
-                    <span v-if="(!sidebarMini || mobileOpen) && company?.show_name"
-                          class="text-[10px] font-bold tracking-[0.25em] uppercase text-zinc-400 text-center transition-all duration-500 mt-1 truncate px-4">
-                        {{ company?.name || 'Tu Inventario' }}
-                    </span>
                 </Link>
                 <button v-if="mobileOpen" @click="mobileOpen = false" class="absolute top-4 right-4 p-1 text-zinc-400 hover:text-white lg:hidden">
                     <span class="material-symbols-outlined">close</span>
@@ -270,6 +266,18 @@ watch(() => page.props.flash, (flash) => {
 .sidebar-scroll::-webkit-scrollbar { width: 4px; }
 .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
 .sidebar-scroll::-webkit-scrollbar-thumb { background: #52525b; border-radius: 4px; }
+
+/* Latido lento del logo */
+@keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    10%      { transform: scale(1.06); }
+    20%      { transform: scale(1); }
+    30%      { transform: scale(1.03); }
+    40%      { transform: scale(1); }
+}
+.animate-heartbeat {
+    animation: heartbeat 2.8s ease-in-out infinite;
+}
 
 /* Transiciones suaves para los submenús */
 .v-enter-active, .v-leave-active {

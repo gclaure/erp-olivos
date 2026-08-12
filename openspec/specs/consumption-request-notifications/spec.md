@@ -71,7 +71,7 @@ Al despachar una solicitud de consumo, el sistema SHALL notificar al usuario cre
 
 ## Requirement: Notificar al Administrador al recepcionar
 
-Al confirmar la recepción de una solicitud de consumo, el sistema SHALL notificar a los Administradores elegibles (usuarios activos con rol Admin/Administrador de la sucursal del almacén de la solicitud, y super admins), con deduplicación. El sistema MUST NOT enviar esta notificación a usuarios con solo rol Almacén ni a usuarios con solo rol Consumidor. Tipo de campana: `consumption_request_received`.
+Al confirmar la recepción de una solicitud de consumo, el sistema SHALL notificar a los Administradores elegibles (usuarios activos con rol Admin/Administrador de la sucursal del almacén de la solicitud, y super admins), con deduplicación, vía notificación de base de datos y vía WebSocket (evento `NuevaNotificacion` en canal `notificaciones.{userId}`). El sistema MUST NOT enviar esta notificación a usuarios con solo rol Almacén ni a usuarios con solo rol Consumidor. Tipo de campana: `consumption_request_received`.
 
 ### Scenario: Admin de sucursal recibe notificación de recepción
 
@@ -90,3 +90,9 @@ Al confirmar la recepción de una solicitud de consumo, el sistema SHALL notific
 - **WHEN** el Consumidor confirma la recepción
 - **AND** existe un super admin activo
 - **THEN** ese super admin MUST recibir la notificación de recepción
+
+### Scenario: Bell de notificaciones se actualiza en tiempo real
+
+- **WHEN** un Admin tiene abierto el sistema y el Consumidor confirma una recepción
+- **THEN** el badge de la campana de notificaciones MUST actualizarse inmediatamente mostrando el conteo de no leídas incrementado
+- **AND** la notificación MUST aparecer en el dropdown de notificaciones sin recarga de página

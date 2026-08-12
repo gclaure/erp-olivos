@@ -3,7 +3,6 @@ import { ref, computed } from 'vue';
 import { useForm, usePage, Head, Link } from '@inertiajs/vue3';
 
 const page = usePage();
-const company = computed(() => page.props.company);
 const appName = computed(() => page.props.appName);
 const flash = computed(() => page.props.flash);
 
@@ -68,7 +67,7 @@ import '../../../css/login.css';
                 <!-- Mobile brand -->
                 <div class="mobile-brand">
                     <div class="mobile-brand-icon">
-                        <img :src="company?.logo_url || '/img/logo-inventory.png'" 
+                        <img src="/img/logo-light.png" 
                              class="w-full h-full object-contain" 
                              alt="Logo"
                              fetchpriority="high"
