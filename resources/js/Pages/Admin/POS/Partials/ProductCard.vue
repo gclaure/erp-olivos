@@ -1,13 +1,14 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 
 const props = defineProps({
     product: Object,
     operationType: String,
+    cart: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['add']);
+const emit = defineEmits(['add', 'update-quantity']);
 
 const page = usePage();
 
@@ -28,11 +29,64 @@ const hasStock = computed(() => availableQty.value > 0);
 const myReserved = computed(() => {
     return Math.floor(parseFloat(props.product.my_reserved_quantity || 0));
 });
+
+const qty = ref(1);
+const maxQty = computed(() => Math.max(1, Math.floor(availableQty.value)));
+
+const cartItem = computed(() => {
+    if (!props.cart.length) return null;
+    const activeWarehouseId = page.props.initialConfig?.activeWarehouseId;
+    const productWarehouseId = props.product.warehouse_id ?? activeWarehouseId;
+    return props.cart.find(item => {
+        if (item.warehouse_id) {
+            return item.id === props.product.id && item.warehouse_id === productWarehouseId;
+        }
+        return item.id === props.product.id;
+    }) || null;
+});
+
+const isInCart = computed(() => !!cartItem.value);
+
+const displayQty = computed(() => {
+    return isInCart.value ? parseFloat(cartItem.value.quantity) || 0 : qty.value;
+});
+
+const increment = () => {
+    if (isInCart.value) {
+        emit('update-quantity', props.product.id, parseFloat(cartItem.value.quantity) + 1, cartItem.value.warehouse_id);
+        return;
+    }
+    qty.value = Math.min(qty.value + 1, maxQty.value);
+};
+
+const decrement = () => {
+    if (isInCart.value) {
+        emit('update-quantity', props.product.id, Math.max(1, parseFloat(cartItem.value.quantity) - 1), cartItem.value.warehouse_id);
+        return;
+    }
+    qty.value = Math.max(qty.value - 1, 1);
+};
+
+const updateInput = (e) => {
+    let v = parseInt(e.target.value, 10);
+    if (isNaN(v) || v < 1) v = 1;
+    if (isInCart.value) {
+        emit('update-quantity', props.product.id, v, cartItem.value.warehouse_id);
+        return;
+    }
+    qty.value = Math.min(v, maxQty.value);
+};
+
+const handleAdd = () => {
+    if (!hasStock.value || isInCart.value) return;
+    emit('add', props.product, qty.value);
+    qty.value = 1;
+};
 </script>
 
 <template>
     <div 
-        @click="hasStock ? $emit('add', product) : null"
+        @click="handleAdd"
         :title="isConsumerView ? product.name : (operationType === 'consumption' ? `${product.name}\nStock disponible: ${Math.floor(availableQty)}` : `${product.name}\nPrecio: ${parseFloat(product.price).toFixed(2)} Bs.\nStock disponible: ${Math.floor(availableQty)}`)"
         class="relative rounded-xl sm:rounded-2xl overflow-hidden flex flex-col transition-all duration-300 group bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 cursor-pointer"
         :class="{ 'opacity-60 cursor-not-allowed': !hasStock }"
@@ -68,6 +122,18 @@ const myReserved = computed(() => {
                         Agregar
                     </span>
                 </div>
+            </div>
+
+            <!-- Badge En Carrito (solo móvil < lg) -->
+            <div 
+                v-if="isInCart"
+                class="lg:hidden absolute top-2 left-2 sm:top-3 sm:left-3 z-10 flex items-center gap-1 bg-emerald-600 text-white px-2 py-1 rounded-full shadow-md border-2 border-white dark:border-secondary-800"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+                </svg>
+                <span class="text-[8px] font-black uppercase tracking-wider leading-none">En carrito</span>
+                <span class="text-[8px] font-black leading-none">{{ displayQty }}</span>
             </div>
 
             <!-- Badge Stock / Disponibilidad -->
@@ -113,6 +179,37 @@ const myReserved = computed(() => {
             <div v-if="operationType !== 'consumption'" class="mt-auto flex items-center justify-between pt-2">
                 <span class="text-sm sm:text-lg font-extrabold text-emerald-600 uppercase leading-none">Bs. {{ parseFloat(product.price).toFixed(2) }}</span>
             </div>
+        </div>
+
+        <!-- Stepper de cantidad (solo móvil < lg) -->
+        <div 
+            v-if="hasStock"
+            @click.stop
+            class="lg:hidden flex items-center justify-between gap-2 px-2 pb-2 sm:px-3 sm:pb-3"
+        >
+            <button
+                type="button"
+                @click.stop="decrement"
+                class="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-100 dark:bg-secondary-700 text-zinc-700 dark:text-secondary-200 border border-zinc-200 dark:border-secondary-600 font-black text-base leading-none active:scale-95 transition-all select-none"
+            >
+                −
+            </button>
+            <input
+                type="text"
+                :value="displayQty"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                @click.stop
+                @input="updateInput"
+                class="w-12 h-8 text-center rounded-lg bg-white dark:bg-secondary-700 text-zinc-900 dark:text-secondary-100 font-extrabold text-sm border border-zinc-200 dark:border-secondary-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+            <button
+                type="button"
+                @click.stop="increment"
+                class="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-600 dark:bg-emerald-500 text-white font-black text-base leading-none active:scale-95 transition-all select-none"
+            >
+                +
+            </button>
         </div>
     </div>
 </template>

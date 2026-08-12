@@ -93,7 +93,7 @@ watch(globalDiscount, (val) => { form.global_discount = val; });
 
 
 // Handlers
-const handleAddProduct = (product) => {
+const handleAddProduct = (product, qty = 1) => {
     // En modo consumo, enriquecer el producto con el almacén activo
     // para permitir agregar el mismo producto de distintos almacenes
     if (props.initialConfig?.operationType === 'consumption') {
@@ -102,9 +102,9 @@ const handleAddProduct = (product) => {
             ...product,
             warehouse_id: warehouseId.value,
             warehouse_name: activeWarehouse?.name ?? props.initialConfig?.warehouseName ?? 'Almacén'
-        });
+        }, qty);
     } else {
-        addItem(product);
+        addItem(product, qty);
     }
 };
 
@@ -239,8 +239,10 @@ onMounted(() => {
                 :warehouses="warehouses"
                 :active-warehouse-id="initialConfig.activeWarehouseId"
                 :operation-type="initialConfig.operationType"
+                :cart="items"
                 @page-change="searchProducts"
                 @add-to-cart="handleAddProduct"
+                @update-quantity="updateQuantity"
                 @change-warehouse="handleChangeWarehouse"
                 :class="activeTab === 'products' ? 'flex' : 'hidden lg:flex'"
             />

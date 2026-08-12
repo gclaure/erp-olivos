@@ -11,9 +11,10 @@ const props = defineProps({
     warehouses: { type: Array, default: () => [] },
     activeWarehouseId: { type: Number, default: null },
     operationType: String,
+    cart: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['update:searchQuery', 'page-change', 'add-to-cart', 'change-warehouse']);
+const emit = defineEmits(['update:searchQuery', 'page-change', 'add-to-cart', 'change-warehouse', 'update-quantity']);
 
 const showWarehouseDropdown = ref(false);
 
@@ -121,8 +122,10 @@ const selectWarehouse = (warehouse) => {
                     v-for="product in products" 
                     :key="product.id" 
                     :product="product"
+                    :cart="cart"
                     :operation-type="operationType"
-                    @add="$emit('add-to-cart', product)"
+                    @add="(product, qty) => $emit('add-to-cart', product, qty)"
+                    @update-quantity="(productId, qty, warehouseId) => $emit('update-quantity', productId, qty, warehouseId)"
                 />
             </div>
 

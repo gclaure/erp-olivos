@@ -62,7 +62,7 @@ export function useCart(initialFixedDiscount = false) {
      * Si el producto trae warehouse_id, se distingue por id + warehouse_id,
      * lo que permite el mismo producto de distintos almacenes en el carrito.
      */
-    const addItem = (product) => {
+    const addItem = (product, quantity = 1) => {
         const existing = items.value.find(i => {
             if (product.warehouse_id) {
                 return i.id === product.id && i.warehouse_id === product.warehouse_id;
@@ -71,11 +71,11 @@ export function useCart(initialFixedDiscount = false) {
         });
 
         if (existing) {
-            existing.quantity++;
+            existing.quantity += quantity;
         } else {
             items.value.push({
                 ...product,
-                quantity: 1,
+                quantity: quantity,
                 discount: 0,
                 glosa: ''
             });
