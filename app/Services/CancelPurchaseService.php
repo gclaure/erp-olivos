@@ -38,21 +38,23 @@ readonly class CancelPurchaseService
             ]);
 
             // 2. Load details to revert stock
-            $purchase->load('details');
+            $purchase->load('details.product');
 
             foreach ($purchase->details as $detail) {
-                // Register Reversal in Kardex
-                $this->kardexService->record(
-                    type: 'SALIDA',
-                    productId: (string) $detail->product_id,
-                    warehouseId: (string) $purchase->warehouse_id,
-                    quantity: (string) BigDecimal::of($detail->quantity)->toScale(4, RoundingMode::HALF_UP),
-                    unitCost: (string) BigDecimal::of($detail->unit_price)->toScale(4, RoundingMode::HALF_UP),
-                    userId: $userId,
-                    notes: 'Reversión por cancelación de compra. Motivo: ' . $reason,
-                    recordableType: Purchase::class,
-                    recordableId: $purchase->id
-                );
+                if ($detail->product && $detail->product->isInventoriable()) {
+                    // Register Reversal in Kardex
+                    $this->kardexService->record(
+                        type: 'SALIDA',
+                        productId: (string) $detail->product_id,
+                        warehouseId: (string) $purchase->warehouse_id,
+                        quantity: (string) BigDecimal::of($detail->quantity)->toScale(4, RoundingMode::HALF_UP),
+                        unitCost: (string) BigDecimal::of($detail->unit_price)->toScale(4, RoundingMode::HALF_UP),
+                        userId: $userId,
+                        notes: 'Reversión por cancelación de compra. Motivo: ' . $reason,
+                        recordableType: Purchase::class,
+                        recordableId: $purchase->id
+                    );
+                }
             }
 
             return $purchase;

@@ -75,6 +75,8 @@ readonly class UnifiedImportService
             $cleanCode = $this->normalizeString((string)($row['codigo_producto'] ?? ''));
             $cleanCat = mb_strtoupper($this->normalizeString((string)($row['categoria'] ?? 'GENERAL')));
             $cleanUom = mb_strtoupper($this->normalizeString((string)($row['unidad_de_medida'] ?? 'UND')));
+            $cleanTipo = mb_strtoupper($this->normalizeString((string)($row['tipo'] ?? 'MATERIA_PRIMA')));
+            $type = ($cleanTipo === 'INSUMO') ? 'insumo' : 'materia_prima';
 
             $date = $this->parseDate($row['fecha_compra'] ?? null);
             $qty = (float)($row['cantidad'] ?? 0);
@@ -108,6 +110,7 @@ readonly class UnifiedImportService
                 $validGrouped[$groupKey] = [
                     'original_row' => $excelRow,
                     'codigo_producto' => $cleanCode,
+                    'tipo' => $type,
                     'descripcion' => $descOriginal,
                     'clean_desc' => $cleanDesc,
                     'categoria' => $cleanCat,
@@ -215,12 +218,15 @@ readonly class UnifiedImportService
                 $product = Product::where(DB::raw('LOWER(name)'), mb_strtolower($data['clean_desc']))->first();
             }
 
+            $productType = ($data['tipo'] ?? 'materia_prima') === 'insumo' ? \App\Enums\ProductType::SUPPLY : \App\Enums\ProductType::RAW_MATERIAL;
+
             if ($product) {
                 // 2. SI EXISTE: PROCEDER A ACTUALIZAR
                 $updateData = [
                     'name' => $data['descripcion'],
                     'unit_of_measure_id' => $uom->id,
                     'has_expiration' => $data['tiene_vencimiento'],
+                    'type' => $productType,
                 ];
 
                 $updateData['units_per_package'] = $data['units_per_package'] ?? 1;
@@ -234,6 +240,7 @@ readonly class UnifiedImportService
                 
                 $product = Product::create([
                     'code' => $code,
+                    'type' => $productType,
                     'name' => $data['descripcion'],
                     'unit_of_measure_id' => $uom->id,
                     'price' => 0, // Al no haber precio_venta en plantilla, iniciamos en 0
@@ -241,7 +248,7 @@ readonly class UnifiedImportService
                     'units_per_package' => $data['units_per_package'] ?? 1,
                     'package_name' => $data['package_name'] ?? null,
                     'is_active' => true,
-                    'min_stock' => 5,
+                    'min_stock' => $productType === \App\Enums\ProductType::RAW_MATERIAL ? 5 : 0,
                 ]);
                 $data['was_created'] = true;
             }

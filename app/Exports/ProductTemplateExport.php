@@ -10,7 +10,6 @@ use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use PhpOffice\PhpSpreadsheet\Style\Protection;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
@@ -23,6 +22,7 @@ class ProductTemplateExport implements WithHeadings, WithTitle, WithStyles, With
     {
         return [
             'codigo_producto',
+            'tipo',
             'descripcion',
             'unidad_de_medida',
             'categoria',
@@ -31,7 +31,7 @@ class ProductTemplateExport implements WithHeadings, WithTitle, WithStyles, With
             'costo_unitario',
             'tiene_vencimiento',
             'unidades_por_empaque',
-            'nombre_empaque'
+            'nombre_empaque',
         ];
     }
 
@@ -44,21 +44,23 @@ class ProductTemplateExport implements WithHeadings, WithTitle, WithStyles, With
     {
         return [
             'A' => 20,
-            'B' => 50,
-            'C' => 20,
+            'B' => 20,
+            'C' => 50,
             'D' => 20,
-            'E' => 15,
+            'E' => 20,
             'F' => 15,
             'G' => 15,
             'H' => 15,
+            'I' => 18,
+            'J' => 20,
+            'K' => 20,
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
-
         return [
-            1    => [
+            1 => [
                 'font' => ['bold' => true],
             ],
         ];
@@ -68,23 +70,38 @@ class ProductTemplateExport implements WithHeadings, WithTitle, WithStyles, With
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                // Obtener la validación para la columna H (tiene_vencimiento)
-                $validation = $event->sheet->getDelegate()->getCell('H2')->getDataValidation();
-                $validation->setType(DataValidation::TYPE_LIST);
-                $validation->setErrorStyle(DataValidation::STYLE_INFORMATION);
-                $validation->setAllowBlank(true);
-                $validation->setShowInputMessage(true);
-                $validation->setShowErrorMessage(true);
-                $validation->setShowDropDown(true);
-                $validation->setErrorTitle('Valor inválido');
-                $validation->setError('Debes seleccionar SI o NO de la lista.');
-                $validation->setPromptTitle('Elegir Opción');
-                $validation->setPrompt('Elige SI o NO.');
-                $validation->setFormula1('"SI,NO"');
+                // Validación para Columna B (tipo)
+                $typeValidation = $event->sheet->getDelegate()->getCell('B2')->getDataValidation();
+                $typeValidation->setType(DataValidation::TYPE_LIST);
+                $typeValidation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+                $typeValidation->setAllowBlank(true);
+                $typeValidation->setShowInputMessage(true);
+                $typeValidation->setShowErrorMessage(true);
+                $typeValidation->setShowDropDown(true);
+                $typeValidation->setErrorTitle('Tipo inválido');
+                $typeValidation->setError('Elige MATERIA_PRIMA o INSUMO.');
+                $typeValidation->setPromptTitle('Tipo de Producto');
+                $typeValidation->setPrompt('MATERIA_PRIMA (Controla stock/kardex) o INSUMO (Consumo directo sin stock).');
+                $typeValidation->setFormula1('"MATERIA_PRIMA,INSUMO"');
 
-                // Clonar la validación hasta la fila 1000
-                for ($i = 3; $i <= 1000; $i++) {
-                    $event->sheet->getDelegate()->getCell("H{$i}")->setDataValidation(clone $validation);
+                // Validación para Columna I (tiene_vencimiento)
+                $expValidation = $event->sheet->getDelegate()->getCell('I2')->getDataValidation();
+                $expValidation->setType(DataValidation::TYPE_LIST);
+                $expValidation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+                $expValidation->setAllowBlank(true);
+                $expValidation->setShowInputMessage(true);
+                $expValidation->setShowErrorMessage(true);
+                $expValidation->setShowDropDown(true);
+                $expValidation->setErrorTitle('Valor inválido');
+                $expValidation->setError('Debes seleccionar SI o NO de la lista.');
+                $expValidation->setPromptTitle('Elegir Opción');
+                $expValidation->setPrompt('Elige SI o NO.');
+                $expValidation->setFormula1('"SI,NO"');
+
+                // Clonar las validaciones hasta la fila 1000
+                for ($i = 2; $i <= 1000; $i++) {
+                    $event->sheet->getDelegate()->getCell("B{$i}")->setDataValidation(clone $typeValidation);
+                    $event->sheet->getDelegate()->getCell("I{$i}")->setDataValidation(clone $expValidation);
                 }
             },
         ];

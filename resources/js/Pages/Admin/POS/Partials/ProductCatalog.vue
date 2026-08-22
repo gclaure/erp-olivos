@@ -7,6 +7,7 @@ const props = defineProps({
     loading: Boolean,
     pagination: Object,
     searchQuery: String,
+    typeFilter: { type: String, default: '' },
     warehouseName: String,
     warehouses: { type: Array, default: () => [] },
     activeWarehouseId: { type: Number, default: null },
@@ -14,13 +15,17 @@ const props = defineProps({
     cart: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['update:searchQuery', 'page-change', 'add-to-cart', 'change-warehouse', 'update-quantity']);
+const emit = defineEmits(['update:searchQuery', 'update:typeFilter', 'page-change', 'add-to-cart', 'change-warehouse', 'update-quantity']);
 
 const showWarehouseDropdown = ref(false);
 
 const selectWarehouse = (warehouse) => {
     showWarehouseDropdown.value = false;
     emit('change-warehouse', warehouse);
+};
+
+const setTypeFilter = (type) => {
+    emit('update:typeFilter', type);
 };
 </script>
 
@@ -105,6 +110,45 @@ const selectWarehouse = (warehouse) => {
                 </div>
             </div>
 
+        </div>
+
+        <!-- Barra de Filtros de Tipo de Producto -->
+        <div class="px-4 py-2 bg-white dark:bg-secondary-800/80 border-b border-zinc-200/80 dark:border-secondary-700/80 flex items-center justify-between gap-2 overflow-x-auto scrollbar-none flex-shrink-0">
+            <div class="flex items-center gap-1.5 sm:gap-2">
+                <button
+                    type="button"
+                    @click="setTypeFilter('')"
+                    class="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                    :class="!typeFilter ? 'bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-900' : 'bg-zinc-100 dark:bg-secondary-700/60 text-zinc-600 dark:text-secondary-300 hover:bg-zinc-200 dark:hover:bg-secondary-700'"
+                >
+                    <span class="material-symbols-outlined text-[15px]">apps</span>
+                    <span>Todos</span>
+                </button>
+
+                <button
+                    type="button"
+                    @click="setTypeFilter('insumo')"
+                    class="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                    :class="typeFilter === 'insumo' ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/30' : 'bg-amber-50/80 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40 hover:bg-amber-100 dark:hover:bg-amber-950/50'"
+                >
+                    <span class="material-symbols-outlined text-[15px]">label</span>
+                    <span>Insumos</span>
+                </button>
+
+                <button
+                    type="button"
+                    @click="setTypeFilter('materia_prima')"
+                    class="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                    :class="typeFilter === 'materia_prima' ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30' : 'bg-indigo-50/80 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-950/50'"
+                >
+                    <span class="material-symbols-outlined text-[15px]">inventory_2</span>
+                    <span>Materia Prima</span>
+                </button>
+            </div>
+
+            <div v-if="pagination?.total !== undefined" class="text-[10px] font-bold text-zinc-400 dark:text-secondary-500 uppercase tracking-widest whitespace-nowrap hidden sm:block">
+                {{ pagination.total }} {{ pagination.total === 1 ? 'Producto' : 'Productos' }}
+            </div>
         </div>
 
         <!-- Grilla de productos -->

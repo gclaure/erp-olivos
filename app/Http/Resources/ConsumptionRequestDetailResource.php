@@ -68,6 +68,8 @@ class ConsumptionRequestDetailResource extends JsonResource
             'observation' => $this->observation,
             'receive_observation' => $this->receive_observation,
             'stock_available' => $stock,
+            'product_type' => $this->product?->type?->value ?? 'materia_prima',
+            'is_inventoriable' => $this->product ? $this->product->isInventoriable() : true,
         ];
     }
 }

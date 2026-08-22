@@ -34,7 +34,7 @@ const {
 const { warehouseId, posId, setWarehouse, setPOS } = usePOSConfig(props.initialConfig || {});
 
 const { 
-    query: productQuery, products, loading: loadingProducts, pagination, search: searchProducts 
+    query: productQuery, typeFilter, products, loading: loadingProducts, pagination, search: searchProducts 
 } = useProductSearch(warehouseId);
 
 const clientQuery = ref('');
@@ -232,6 +232,7 @@ onMounted(() => {
             <!-- PANEL IZQUIERDO: CATÁLOGO DE PRODUCTOS (55%) -->
             <ProductCatalog 
                 v-model:searchQuery="productQuery"
+                v-model:typeFilter="typeFilter"
                 :products="products"
                 :loading="loadingProducts"
                 :pagination="pagination"

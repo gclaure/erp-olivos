@@ -67,6 +67,9 @@ readonly class PurchaseService
             }
             $warehouse = Warehouse::find($purchaseData['warehouse_id']);
 
+            $productIds = array_column($detailsData, 'product_id');
+            $productsMap = \App\Models\Product::whereIn('id', $productIds)->get()->keyBy('id');
+
             foreach ($detailsData as $detail) {
                 $qty = BigDecimal::of($detail['quantity']);
                 $unitPrice = BigDecimal::of($detail['unit_price']);
@@ -82,29 +85,32 @@ readonly class PurchaseService
                     'expiration_date' => $detail['expiration_date'] ?? null,
                 ]);
 
-                // 2. Asegurar existencia de Stock preliminar (la estrategia de Kardex se encarga de actualizar cantidades y costos)
-                Stock::firstOrCreate(
-                    [
-                        'product_id' => $detail['product_id'],
-                        'warehouse_id' => $purchaseData['warehouse_id'],
-                    ],
-                    ['quantity' => '0.0000']
-                );
+                $product = $productsMap->get($detail['product_id']);
 
-                // 3. Registrar en Kardex
-                $this->kardexService->record(
-                    type: 'ENTRADA',
-                    productId: (string) $detail['product_id'],
-                    warehouseId: (string) $purchaseData['warehouse_id'],
-                    quantity: (string) $qty->toScale(4, RoundingMode::HALF_UP),
-                    unitCost: (string) $unitPrice->toScale(4, RoundingMode::HALF_UP),
-                    userId: $purchaseData['user_id'],
-                    notes: 'Ingreso por compra. Ref: ' . ($purchaseData['notes'] ?: 'Ninguna'),
-                    recordableType: Purchase::class,
-                    recordableId: $purchase->id,
-                    expirationDate: $detail['expiration_date'] ?? null
-                );
+                // 2. Solo registrar Stock y Kardex si el producto es inventariable (materia prima)
+                if ($product && $product->isInventoriable()) {
+                    Stock::firstOrCreate(
+                        [
+                            'product_id' => $detail['product_id'],
+                            'warehouse_id' => $purchaseData['warehouse_id'],
+                        ],
+                        ['quantity' => '0.0000']
+                    );
 
+                    // 3. Registrar en Kardex
+                    $this->kardexService->record(
+                        type: 'ENTRADA',
+                        productId: (string) $detail['product_id'],
+                        warehouseId: (string) $purchaseData['warehouse_id'],
+                        quantity: (string) $qty->toScale(4, RoundingMode::HALF_UP),
+                        unitCost: (string) $unitPrice->toScale(4, RoundingMode::HALF_UP),
+                        userId: $purchaseData['user_id'],
+                        notes: 'Ingreso por compra. Ref: ' . ($purchaseData['notes'] ?: 'Ninguna'),
+                        recordableType: Purchase::class,
+                        recordableId: $purchase->id,
+                        expirationDate: $detail['expiration_date'] ?? null
+                    );
+                }
             }
 
             $purchase->load('details');

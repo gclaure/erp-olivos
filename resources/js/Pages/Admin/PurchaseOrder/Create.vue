@@ -83,7 +83,10 @@ const searchProducts = async (query = '') => {
     isSearching.value = true;
     try {
         const response = await axios.get(route('admin.api.selects.products'), {
-            params: { search: query }
+            params: { 
+                search: query,
+                type: 'materia_prima',
+            }
         });
         searchResults.value = response.data;
         showDropdown.value = true;
@@ -117,22 +120,40 @@ const addProduct = (product) => {
         return;
     }
 
+    const initialFormat = (product.package_name && product.units_per_package > 0) ? 'package' : 'base';
+    const factor = parseFloat(product.units_per_package) || 1;
+    const basePrice = parseFloat(product.price) || 0;
+    const initialPrice = (initialFormat === 'package' && factor > 1) ? (basePrice * factor) : basePrice;
+
     form.details.push({
         product_id: product.id,
         name: product.name,
         code: product.code,
         quantity: 1,
-        unit_price: parseFloat(product.price) || 0,
+        unit_price: parseFloat(initialPrice.toFixed(4)),
         unit: product.unit || 'UND',
         package_name: product.package_name || '',
-        units_per_package: parseFloat(product.units_per_package) || 1,
-        purchase_format: product.package_name ? 'package' : 'base',
+        units_per_package: factor,
+        purchase_format: initialFormat,
+        _previous_format: initialFormat,
         warehouses: product.warehouses || [],
     });
 
     productSearch.value = '';
     searchResults.value = [];
     showDropdown.value = false;
+};
+
+const onFormatChange = (item) => {
+    const factor = parseFloat(item.units_per_package) || 1;
+    if (factor <= 1 || item._previous_format === item.purchase_format) return;
+    
+    if (item.purchase_format === 'package' && item._previous_format === 'base') {
+        item.unit_price = parseFloat((item.unit_price * factor).toFixed(4));
+    } else if (item.purchase_format === 'base' && item._previous_format === 'package') {
+        item.unit_price = parseFloat((item.unit_price / factor).toFixed(4));
+    }
+    item._previous_format = item.purchase_format;
 };
 
 const removeProduct = (index) => {
@@ -349,10 +370,24 @@ onUnmounted(() => {
                                     class="w-full px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-950 flex items-center justify-between text-zinc-900 dark:text-white border-b border-zinc-100 dark:border-secondary-700 last:border-0">
                                 <div class="flex flex-col">
                                     <span class="text-xs font-bold">{{ product.name }}</span>
-                                    <span class="text-[10px] font-semibold text-zinc-400 mt-0.5">{{ product.code }}</span>
+                                    <span class="text-[10px] font-semibold text-zinc-400 mt-0.5">{{ product.code || 'S/C' }}</span>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-[10px] font-bold px-2 py-0.5 bg-zinc-100 dark:bg-zinc-700 rounded text-zinc-600 dark:text-zinc-300">Bs. {{ formatNumber(product.price) }}</span>
+                                    <template v-if="product.package_name && product.units_per_package > 1">
+                                        <div class="text-right">
+                                            <span class="text-[10px] font-bold px-2 py-0.5 bg-zinc-100 dark:bg-zinc-700 rounded text-zinc-600 dark:text-zinc-300 block">
+                                                Bs. {{ formatNumber(product.price * product.units_per_package) }}
+                                            </span>
+                                            <span class="text-[8px] font-black text-indigo-500 block uppercase">
+                                                / {{ product.package_name }}
+                                            </span>
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <span class="text-[10px] font-bold px-2 py-0.5 bg-zinc-100 dark:bg-zinc-700 rounded text-zinc-600 dark:text-zinc-300">
+                                            Bs. {{ formatNumber(product.price) }}
+                                        </span>
+                                    </template>
                                     <span class="material-symbols-outlined text-zinc-400">add</span>
                                 </div>
                             </button>
@@ -398,7 +433,8 @@ onUnmounted(() => {
                                     <!-- Formato de Compra -->
                                     <td class="px-6 py-4">
                                         <div v-if="item.package_name && item.units_per_package > 0">
-                                            <select v-model="item.purchase_format" class="w-full min-w-[140px] px-3 py-2 bg-zinc-50 dark:bg-secondary-900 border border-zinc-200 dark:border-secondary-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 rounded-xl text-xs font-black uppercase tracking-widest text-center cursor-pointer transition-colors duration-200">
+                                            <select v-model="item.purchase_format" @change="onFormatChange(item)"
+                                                    class="w-full min-w-[140px] px-3 py-2 bg-zinc-50 dark:bg-secondary-900 border border-zinc-200 dark:border-secondary-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 rounded-xl text-xs font-black uppercase tracking-widest text-center cursor-pointer transition-colors duration-200">
                                                 <option value="base">{{ item.unit }} (Base)</option>
                                                 <option value="package">{{ item.package_name }} ({{ parseFloat(item.units_per_package) }} {{ item.unit }})</option>
                                             </select>

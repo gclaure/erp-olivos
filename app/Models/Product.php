@@ -18,6 +18,7 @@ class Product extends Model
 
     protected $fillable = [
         'code',
+        'type',
         'name',
         'description',
         'image_path',
@@ -36,6 +37,7 @@ class Product extends Model
     ];
 
     protected $casts = [
+        'type'             => \App\Enums\ProductType::class,
         'price'            => 'decimal:4',
         'min_stock'        => 'decimal:4',
         'units_per_package'=> 'decimal:4',
@@ -43,6 +45,31 @@ class Product extends Model
         'has_expiration'   => 'boolean',
         'drive_links'      => 'array',
     ];
+
+    public function isRawMaterial(): bool
+    {
+        return $this->type === \App\Enums\ProductType::RAW_MATERIAL;
+    }
+
+    public function isSupply(): bool
+    {
+        return $this->type === \App\Enums\ProductType::SUPPLY;
+    }
+
+    public function isInventoriable(): bool
+    {
+        return $this->type?->isInventoriable() ?? true;
+    }
+
+    public function scopeRawMaterials(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('type', \App\Enums\ProductType::RAW_MATERIAL->value);
+    }
+
+    public function scopeSupplies(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('type', \App\Enums\ProductType::SUPPLY->value);
+    }
 
     public function unitOfMeasure(): BelongsTo
     {
@@ -67,6 +94,10 @@ class Product extends Model
     protected static function booted(): void
     {
         static::saving(function (Product $product) {
+            if (empty($product->type)) {
+                $product->type = \App\Enums\ProductType::RAW_MATERIAL;
+            }
+
             if (empty($product->slug) && !empty($product->name)) {
                 $originalSlug = Str::slug($product->name);
                 $slug = $originalSlug;
@@ -83,7 +114,6 @@ class Product extends Model
                 $product->slug = $slug;
             }
         });
-
     }
 }
 

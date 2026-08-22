@@ -77,6 +77,16 @@ class SaveConsumptionRequest extends FormRequest
                 $warehouseId = (string) $item['warehouse_id'];
                 $requestedQty = (float) $item['quantity'];
 
+                $product = \App\Models\Product::find($productId);
+                if (!$product) {
+                    continue;
+                }
+
+                // Insumos no tienen control de stock físico restrictivo ni validación de inventario
+                if (!$product->isInventoriable()) {
+                    continue;
+                }
+
                 $stock = \App\Models\Stock::where('product_id', $productId)
                     ->where('warehouse_id', $warehouseId)
                     ->first();

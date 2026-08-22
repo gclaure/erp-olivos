@@ -45,13 +45,19 @@ class ConsumptionRequestDispatchService
                     continue; // Ya entregado completamente
                 }
 
-                // Obtener stock disponible en el almacén
-                $stock = Stock::withoutGlobalScopes()
-                    ->where('warehouse_id', $warehouseId)
-                    ->where('product_id', $productId)
-                    ->first();
+                $isInventoriable = $detail->product ? $detail->product->isInventoriable() : true;
 
-                $availableStock = $stock ? (float) $stock->quantity : 0.0;
+                // Obtener stock disponible en el almacén
+                if ($isInventoriable) {
+                    $stock = Stock::withoutGlobalScopes()
+                        ->where('warehouse_id', $warehouseId)
+                        ->where('product_id', $productId)
+                        ->first();
+
+                    $availableStock = $stock ? (float) $stock->quantity : 0.0;
+                } else {
+                    $availableStock = 999999.0;
+                }
 
                 // Calcular cantidad a entregar en esta ronda
                 if (isset($dispatchQuantities[$detail->id])) {
@@ -66,7 +72,7 @@ class ConsumptionRequestDispatchService
 
                 // Si la cantidad a despachar supera lo pendiente o lo disponible en almacén, requiere observación
                 $exceedsPending = $dispatchQty > $pendingQty;
-                $exceedsStock = $dispatchQty > $availableStock;
+                $exceedsStock = $isInventoriable && ($dispatchQty > $availableStock);
 
                 if ($exceedsPending || $exceedsStock) {
                     $obs = $observations[$detail->id] ?? null;
@@ -86,26 +92,28 @@ class ConsumptionRequestDispatchService
                 }
 
                 if ($dispatchQty > 0) {
-                    // Obtener costo promedio del producto en este almacén
-                    $lastKardex = Kardex::withoutGlobalScopes()
-                        ->where('product_id', $productId)
-                        ->where('warehouse_id', $warehouseId)
-                        ->latest('id')
-                        ->first();
-                    $avgCost = $lastKardex ? (string) $lastKardex->avg_cost : '0.0000';
+                    if ($isInventoriable) {
+                        // Obtener costo promedio del producto en este almacén
+                        $lastKardex = Kardex::withoutGlobalScopes()
+                            ->where('product_id', $productId)
+                            ->where('warehouse_id', $warehouseId)
+                            ->latest('id')
+                            ->first();
+                        $avgCost = $lastKardex ? (string) $lastKardex->avg_cost : '0.0000';
 
-                    // Registrar en Kardex como ADJUSTMENT_OUT (Salida de Consumo)
-                    $this->kardexService->record(
-                        type: KardexMovementType::ADJUSTMENT_OUT,
-                        productId: $productId,
-                        warehouseId: $warehouseId,
-                        quantity: $dispatchQty,
-                        unitCost: $avgCost,
-                        userId: Auth::id(),
-                        notes: "Despacho de Consumo Interno: {$consumptionRequest->requested_by}",
-                        recordableType: ConsumptionRequest::class,
-                        recordableId: $consumptionRequest->id
-                    );
+                        // Registrar en Kardex como ADJUSTMENT_OUT (Salida de Consumo)
+                        $this->kardexService->record(
+                            type: KardexMovementType::ADJUSTMENT_OUT,
+                            productId: $productId,
+                            warehouseId: $warehouseId,
+                            quantity: $dispatchQty,
+                            unitCost: $avgCost,
+                            userId: Auth::id(),
+                            notes: "Despacho de Consumo Interno: {$consumptionRequest->requested_by}",
+                            recordableType: ConsumptionRequest::class,
+                            recordableId: $consumptionRequest->id
+                        );
+                    }
 
                     // Actualizar el detalle
                     $detail->quantity_delivered = $alreadyDelivered + $dispatchQty;

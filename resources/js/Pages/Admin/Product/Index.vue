@@ -11,6 +11,10 @@ import Swal from 'sweetalert2';
 const props = defineProps({
     products: Object,
     filters: Object,
+    type_counts: {
+        type: Object,
+        default: () => ({ total: 0, materia_prima: 0, insumo: 0 })
+    },
     categories: Array,
     units: Array,
     warehouses: Array,
@@ -18,8 +22,13 @@ const props = defineProps({
 });
 
 const search = ref(props.filters.search || '');
+const type = ref(props.filters.type || null);
 const warehouseId = ref(props.filters.warehouse_id || null);
 const lowStock = ref(props.filters.low_stock || false);
+
+const setTypeFilter = (newType) => {
+    type.value = newType;
+};
 
 const showModal = ref(false);
 const showImportModal = ref(false);
@@ -49,17 +58,18 @@ const prevImage = () => {
 const updateFilters = debounce(() => {
     router.get(route('admin.products.index'), {
         search: search.value,
+        type: type.value,
         warehouse_id: warehouseId.value,
         low_stock: lowStock.value ? 1 : 0,
     }, {
-        only: ['products', 'filters'],
+        only: ['products', 'filters', 'type_counts'],
         preserveState: true,
         preserveScroll: true,
         replace: true,
     });
 }, 500);
 
-watch([search, warehouseId, lowStock], () => {
+watch([search, type, warehouseId, lowStock], () => {
     updateFilters();
 });
 
@@ -104,7 +114,7 @@ const downloadTemplate = () => {
 
     <AdminLayout>
         <!-- Header Section -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5 mb-8">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5 mb-6">
             <div>
                 <h1 class="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Productos</h1>
                 <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Gestión integral del catálogo e inventario técnico</p>
@@ -130,29 +140,89 @@ const downloadTemplate = () => {
             </div>
         </div>
 
+        <!-- Quick Type Selector Tabs -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 mb-6 scrollbar-hide">
+            <!-- Tab Todos -->
+            <button type="button" @click="setTypeFilter(null)"
+                    :class="[
+                        !type
+                            ? 'bg-zinc-900 text-white shadow-md shadow-zinc-900/10 dark:bg-white dark:text-zinc-900'
+                            : 'bg-white dark:bg-gray-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-gray-700/60 border border-zinc-200 dark:border-gray-700'
+                    ]"
+                    class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0">
+                <span class="material-symbols-outlined text-base">apps</span>
+                <span>Todos los Productos</span>
+                <span :class="[
+                    !type 
+                        ? 'bg-white/20 text-white dark:bg-zinc-900/20 dark:text-zinc-900' 
+                        : 'bg-zinc-100 dark:bg-gray-700 text-zinc-600 dark:text-zinc-300'
+                ]" class="px-2 py-0.5 rounded-md text-[11px] font-black">
+                    {{ type_counts?.total ?? 0 }}
+                </span>
+            </button>
+
+            <!-- Tab Materia Prima -->
+            <button type="button" @click="setTypeFilter('materia_prima')"
+                    :class="[
+                        type === 'materia_prima'
+                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20 ring-2 ring-indigo-500/30'
+                            : 'bg-white dark:bg-gray-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-gray-700/60 border border-zinc-200 dark:border-gray-700'
+                    ]"
+                    class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0">
+                <span class="material-symbols-outlined text-base" :class="type === 'materia_prima' ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'">inventory_2</span>
+                <span>Materia Prima</span>
+                <span :class="[
+                    type === 'materia_prima'
+                        ? 'bg-white/20 text-white' 
+                        : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300'
+                ]" class="px-2 py-0.5 rounded-md text-[11px] font-black">
+                    {{ type_counts?.materia_prima ?? 0 }}
+                </span>
+            </button>
+
+            <!-- Tab Insumos -->
+            <button type="button" @click="setTypeFilter('insumo')"
+                    :class="[
+                        type === 'insumo'
+                            ? 'bg-amber-600 text-white shadow-md shadow-amber-500/20 ring-2 ring-amber-500/30'
+                            : 'bg-white dark:bg-gray-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-gray-700/60 border border-zinc-200 dark:border-gray-700'
+                    ]"
+                    class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0">
+                <span class="material-symbols-outlined text-base" :class="type === 'insumo' ? 'text-white' : 'text-amber-600 dark:text-amber-400'">handyman</span>
+                <span>Insumos</span>
+                <span :class="[
+                    type === 'insumo'
+                        ? 'bg-white/20 text-white' 
+                        : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300'
+                ]" class="px-2 py-0.5 rounded-md text-[11px] font-black">
+                    {{ type_counts?.insumo ?? 0 }}
+                </span>
+            </button>
+        </div>
+
         <!-- Filters Section -->
-        <div class="grid grid-cols-1 lg:grid-cols-6 gap-4 mb-8 items-center">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 mb-8 items-center">
             <!-- Search Bar -->
-            <div class="lg:col-span-3 relative group">
+            <div class="lg:col-span-5 relative group">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <span class="material-symbols-outlined text-zinc-400 group-focus-within:text-indigo-500 transition-colors">search</span>
                 </div>
                 <input v-model="search"
                        type="text"
-                       placeholder="Buscar productos por nombre o código..."
+                       placeholder="Buscar por nombre o código SKU..."
                        class="w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-800 border-zinc-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-2xl text-sm transition-all dark:text-white placeholder-zinc-400 shadow-sm">
             </div>
-            
+
             <!-- Warehouse Filter -->
-            <div class="lg:col-span-2">
+            <div class="lg:col-span-4">
                 <BaseSelect v-model="warehouseId"
                            :options="[{ id: null, name: 'Todos los almacenes' }, ...warehouses]"
-                           icon="inventory_2"
+                           icon="warehouse"
                            placeholder="Todos los almacenes" />
             </div>
 
             <!-- Low Stock Toggle -->
-            <div class="lg:col-span-1">
+            <div class="lg:col-span-3">
                 <button @click="lowStock = !lowStock"
                         :class="[
                             'w-full h-[50px] rounded-2xl border transition-all duration-300 flex items-center justify-between px-4 group shadow-sm overflow-hidden relative',
@@ -220,7 +290,17 @@ const downloadTemplate = () => {
                                         </div>
                                     </div>
                                     <div class="flex flex-col">
-                                        <span class="text-sm font-bold text-zinc-900 dark:text-white leading-tight">{{ product.name }}</span>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm font-bold text-zinc-900 dark:text-white leading-tight">{{ product.name }}</span>
+                                            <span v-if="product.type === 'insumo'"
+                                                  class="inline-flex items-center text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/40 px-1.5 py-0.5 rounded">
+                                                Insumo
+                                            </span>
+                                            <span v-else
+                                                  class="inline-flex items-center text-[9px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 px-1.5 py-0.5 rounded">
+                                                Materia Prima
+                                            </span>
+                                        </div>
                                         <div class="flex flex-wrap items-center gap-1.5 mt-1">
                                             <span class="text-[10px] text-zinc-400 uppercase tracking-widest">{{ product.categories.map(c => c.name).join(', ') }}</span>
                                             <span v-if="product.warehouses && product.warehouses.length > 0" class="text-[10px] text-zinc-300 dark:text-zinc-600">•</span>
@@ -235,13 +315,18 @@ const downloadTemplate = () => {
                                 </div>
                             </td>
                             <td class="px-6 py-4 text-center">
-                                <span :class="[
-                                    'text-sm font-black tracking-tight',
-                                    product.current_stock > product.min_stock ? 'text-emerald-600 dark:text-emerald-400' : 
-                                    product.current_stock > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
-                                ]">
-                                    {{ Number(product.current_stock).toFixed(2) }}
-                                </span>
+                                <template v-if="product.type === 'insumo'">
+                                    <span class="text-xs font-bold text-zinc-400 dark:text-zinc-500 tracking-wide" title="No inventariable">—</span>
+                                </template>
+                                <template v-else>
+                                    <span :class="[
+                                        'text-sm font-black tracking-tight',
+                                        product.current_stock > product.min_stock ? 'text-emerald-600 dark:text-emerald-400' : 
+                                        product.current_stock > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
+                                    ]">
+                                        {{ Number(product.current_stock).toFixed(2) }}
+                                    </span>
+                                </template>
                             </td>
                             <td class="px-6 py-4 text-center">
                                 <span class="text-xs font-bold text-zinc-500 dark:text-zinc-400">
@@ -249,14 +334,19 @@ const downloadTemplate = () => {
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-center">
-                                <div class="flex flex-col items-center">
-                                    <span class="text-sm font-black text-zinc-700 dark:text-zinc-300">
-                                        {{ (Number(product.current_stock) / Number(product.units_per_package || 1)).toFixed(2) }}
-                                    </span>
-                                    <span v-if="product.package_name" class="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-tighter">
-                                        {{ product.package_name }}
-                                    </span>
-                                </div>
+                                <template v-if="product.type === 'insumo'">
+                                    <span class="text-xs font-bold text-zinc-400 dark:text-zinc-500">—</span>
+                                </template>
+                                <template v-else>
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-sm font-black text-zinc-700 dark:text-zinc-300">
+                                            {{ (Number(product.current_stock) / Number(product.units_per_package || 1)).toFixed(2) }}
+                                        </span>
+                                        <span v-if="product.package_name" class="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-tighter">
+                                            {{ product.package_name }}
+                                        </span>
+                                    </div>
+                                </template>
                             </td>
                             <td class="px-6 py-4 text-center">
                                 <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
@@ -264,21 +354,30 @@ const downloadTemplate = () => {
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-center">
-                                <span v-if="product.current_stock > 0" class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-100 dark:border-emerald-800/20">
-                                    OK
-                                </span>
-                                <span v-else class="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest px-2 py-1 bg-rose-50 dark:bg-rose-900/20 rounded-lg border border-rose-100 dark:border-rose-800/20">
-                                    AGOTADO
-                                </span>
+                                <template v-if="product.type === 'insumo'">
+                                    <span class="text-[10px] font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest px-2 py-1 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200/50 dark:border-amber-800/20">
+                                        DISPONIBLE
+                                    </span>
+                                </template>
+                                <template v-else>
+                                    <span v-if="product.current_stock > 0" class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-100 dark:border-emerald-800/20">
+                                        OK
+                                    </span>
+                                    <span v-else class="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest px-2 py-1 bg-rose-50 dark:bg-rose-900/20 rounded-lg border border-rose-100 dark:border-rose-800/20">
+                                        AGOTADO
+                                    </span>
+                                </template>
                             </td>
                             <td class="px-6 py-4 text-right whitespace-nowrap align-middle">
                                 <div class="flex items-center justify-end gap-1">
                                     <button @click="openEditModal(product)"
-                                            class="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl transition-all active:scale-90">
+                                            class="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl transition-all active:scale-90"
+                                            title="Editar">
                                         <span class="material-symbols-outlined text-lg">edit_square</span>
                                     </button>
                                     <button @click="deleteProduct(product)"
-                                            class="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition-all active:scale-90">
+                                            class="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition-all active:scale-90"
+                                            title="Eliminar">
                                         <span class="material-symbols-outlined text-lg">delete</span>
                                     </button>
                                 </div>
@@ -317,12 +416,17 @@ const downloadTemplate = () => {
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">#{{ String(index + 1).padStart(2, '0') }}</span>
-                                <span v-if="product.is_active" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/20">
-                                    Activo
-                                </span>
-                                <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-gray-600">
-                                    Inactivo
-                                </span>
+                                <div class="flex items-center gap-1.5">
+                                    <span v-if="product.type === 'insumo'" class="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/20">
+                                        Insumo
+                                    </span>
+                                    <span v-else class="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/20">
+                                        Materia Prima
+                                    </span>
+                                    <span v-if="product.is_active" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/20">
+                                        Activo
+                                    </span>
+                                </div>
                             </div>
                             <h4 class="font-bold text-zinc-900 dark:text-white text-base truncate mt-0.5">{{ product.name }}</h4>
                             <div class="flex items-center gap-2 mt-1 font-mono text-[10px]">
@@ -344,13 +448,18 @@ const downloadTemplate = () => {
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Stock Actual</span>
-                            <span :class="[
-                                'text-sm font-black tracking-tight',
-                                product.current_stock > product.min_stock ? 'text-emerald-600 dark:text-emerald-400' : 
-                                product.current_stock > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
-                            ]">
-                                {{ Number(product.current_stock).toFixed(2) }} <small class="text-[9px] font-bold opacity-60">{{ product.unit_of_measure?.abbreviation || 'UND' }}</small>
-                            </span>
+                            <template v-if="product.type === 'insumo'">
+                                <span class="text-xs font-bold text-zinc-400 dark:text-zinc-500">No aplica (Insumo)</span>
+                            </template>
+                            <template v-else>
+                                <span :class="[
+                                    'text-sm font-black tracking-tight',
+                                    product.current_stock > product.min_stock ? 'text-emerald-600 dark:text-emerald-400' : 
+                                    product.current_stock > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
+                                ]">
+                                    {{ Number(product.current_stock).toFixed(2) }} <small class="text-[9px] font-bold opacity-60">{{ product.unit_of_measure?.abbreviation || 'UND' }}</small>
+                                </span>
+                            </template>
                         </div>
                     </div>
 

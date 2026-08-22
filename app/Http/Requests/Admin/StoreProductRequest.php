@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
+use App\Enums\ProductType;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreProductRequest extends FormRequest
 {
@@ -19,6 +21,8 @@ class StoreProductRequest extends FormRequest
             'is_active' => $this->boolean('is_active'),
             'has_expiration' => $this->boolean('has_expiration'),
             'show_in_ecommerce' => $this->boolean('show_in_ecommerce'),
+            'type' => $this->input('type', ProductType::RAW_MATERIAL->value),
+            'min_stock' => $this->input('type') === ProductType::SUPPLY->value ? ($this->input('min_stock') ?: 0) : $this->input('min_stock'),
         ]);
     }
 
@@ -26,17 +30,27 @@ class StoreProductRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:250',
-            'warehouse_ids' => 'required|array|min:1',
+            'type' => ['required', Rule::enum(ProductType::class)],
+            'warehouse_ids' => [
+                'required_if:type,' . ProductType::RAW_MATERIAL->value,
+                'nullable',
+                'array',
+            ],
             'warehouse_ids.*' => 'exists:warehouses,id',
             'code' => [
                 'nullable',
                 'string',
                 'max:50',
-                \Illuminate\Validation\Rule::unique('products', 'code'),
+                Rule::unique('products', 'code'),
             ],
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
-            'min_stock' => 'required|numeric|min:0',
+            'min_stock' => [
+                'required_if:type,' . ProductType::RAW_MATERIAL->value,
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
             'is_active' => 'required|boolean',
             'has_expiration' => 'required|boolean',
             'show_in_ecommerce' => 'required|boolean',
@@ -55,7 +69,7 @@ class StoreProductRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:255',
-                \Illuminate\Validation\Rule::unique('products', 'slug'),
+                Rule::unique('products', 'slug'),
             ],
         ];
     }
@@ -64,7 +78,9 @@ class StoreProductRequest extends FormRequest
     {
         return [
             'name.required' => 'El nombre es obligatorio.',
-            'warehouse_ids.required' => 'Selecciona al menos un almacén.',
+            'type.required' => 'El tipo de producto es obligatorio.',
+            'warehouse_ids.required_if' => 'Selecciona al menos un almacén para materia prima.',
+            'min_stock.required_if' => 'El stock mínimo es obligatorio para materia prima.',
             'code.unique' => 'El código ya está en uso.',
             'category_ids.required' => 'Selecciona al menos una categoría.',
             'unit_of_measure_id.required' => 'La unidad de medida es obligatoria.',

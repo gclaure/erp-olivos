@@ -2,8 +2,9 @@ import { ref, watch } from 'vue';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
 
-export function useProductSearch(warehouseId) {
+export function useProductSearch(warehouseId, initialType = '') {
     const query = ref('');
+    const typeFilter = ref(initialType);
     const products = ref([]);
     const loading = ref(false);
     const pagination = ref({
@@ -20,13 +21,15 @@ export function useProductSearch(warehouseId) {
         
         loading.value = true;
         try {
-            const response = await axios.get(route('admin.api.pos.products'), {
-                params: {
-                    warehouse_id: warehouseId.value,
-                    search: query.value,
-                    page: page
-                }
-            });
+            const params = {
+                warehouse_id: warehouseId.value,
+                search: query.value,
+                page: page
+            };
+            if (typeFilter.value) {
+                params.type = typeFilter.value;
+            }
+            const response = await axios.get(route('admin.api.pos.products'), { params });
             products.value = response.data.data;
             pagination.value = {
                 current_page: response.data.meta.current_page,
@@ -44,12 +47,13 @@ export function useProductSearch(warehouseId) {
         }
     }, 300);
 
-    watch([query, warehouseId], () => {
+    watch([query, warehouseId, typeFilter], () => {
         search(1);
     }, { immediate: true });
 
     return {
         query,
+        typeFilter,
         products,
         loading,
         pagination,

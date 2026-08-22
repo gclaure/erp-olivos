@@ -18,20 +18,23 @@ const isConsumerView = computed(() => {
     return roles.includes('Consumidor') || roles.includes('consumidor');
 });
 
+const isSupply = computed(() => props.product?.type === 'insumo' || props.product?.is_inventoriable === false);
+
 const availableQty = computed(() => {
+    if (isSupply.value) return 999999;
     const physical = parseFloat(props.product.stocks?.[0]?.quantity || 0);
     const reserved = parseFloat(props.product.reserved_quantity || 0);
     return Math.max(0, physical - reserved);
 });
 
-const hasStock = computed(() => availableQty.value > 0);
+const hasStock = computed(() => isSupply.value || availableQty.value > 0);
 
 const myReserved = computed(() => {
     return Math.floor(parseFloat(props.product.my_reserved_quantity || 0));
 });
 
 const qty = ref(1);
-const maxQty = computed(() => Math.max(1, Math.floor(availableQty.value)));
+const maxQty = computed(() => isSupply.value ? 99999 : Math.max(1, Math.floor(availableQty.value)));
 
 const cartItem = computed(() => {
     if (!props.cart.length) return null;
@@ -87,7 +90,7 @@ const handleAdd = () => {
 <template>
     <div 
         @click="handleAdd"
-        :title="isConsumerView ? product.name : (operationType === 'consumption' ? `${product.name}\nStock disponible: ${Math.floor(availableQty)}` : `${product.name}\nPrecio: ${parseFloat(product.price).toFixed(2)} Bs.\nStock disponible: ${Math.floor(availableQty)}`)"
+        :title="isConsumerView ? product.name : (operationType === 'consumption' ? `${product.name}\n${isSupply ? 'Insumo (Disponible)' : `Stock disponible: ${Math.floor(availableQty)}`}` : `${product.name}\nPrecio: ${parseFloat(product.price).toFixed(2)} Bs.\n${isSupply ? 'Insumo' : `Stock disponible: ${Math.floor(availableQty)}`}`)"
         class="relative rounded-xl sm:rounded-2xl overflow-hidden flex flex-col transition-all duration-300 group bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 cursor-pointer"
         :class="{ 'opacity-60 cursor-not-allowed': !hasStock }"
     >
@@ -138,7 +141,14 @@ const handleAdd = () => {
 
             <!-- Badge Stock / Disponibilidad -->
             <div class="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
-                <template v-if="isConsumerView">
+                <template v-if="isSupply">
+                    <span 
+                        class="px-2 py-0.5 bg-amber-600 text-white text-[8px] font-black uppercase rounded-full shadow-sm border-2 border-white dark:border-secondary-800"
+                    >
+                        Insumo
+                    </span>
+                </template>
+                <template v-else-if="isConsumerView">
                     <span 
                         :class="hasStock ? 'bg-emerald-600' : 'bg-rose-500'"
                         class="px-1.5 py-0.5 text-white text-[8px] font-black uppercase rounded-full shadow-sm border-2 border-white dark:border-secondary-800"

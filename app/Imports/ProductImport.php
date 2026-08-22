@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Imports;
 
+use App\Enums\ProductType;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\UnitOfMeasure;
+use App\Services\ProductService;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -22,14 +24,14 @@ class ProductImport implements ToCollection, WithHeadingRow
 
         // 2. Validar que tenga las cabeceras requeridas revisando la primera fila
         $firstRow = $rows->first()->toArray();
-        $requiredHeaders = ['codigo_producto', 'descripcion', 'unidad_de_medida', 'categoria'];
+        $requiredHeaders = ['descripcion', 'unidad_de_medida', 'categoria'];
         $missingHeaders = array_diff($requiredHeaders, array_keys($firstRow));
         
         if (count($missingHeaders) > 0) {
             throw new \Exception('La plantilla no es válida o fue modificada. Faltan las siguientes columnas requeridas: ' . implode(', ', $missingHeaders));
         }
 
-        // 3. Validar códigos duplicados dentro del archivo Excel
+        // 3. Validar códigos duplicados dentro del archivo Excel (sólo para los que no estén vacíos)
         $seenCodes = [];
         foreach ($rows as $index => $row) {
             $code = trim((string)($row['codigo_producto'] ?? ''));
@@ -37,8 +39,6 @@ class ProductImport implements ToCollection, WithHeadingRow
                 continue;
             }
 
-            // El índice de Collection comienza en 0, la fila 1 es la cabecera en Excel,
-            // por tanto la fila de datos real en Excel es $index + 2.
             $excelRow = $index + 2;
 
             if (isset($seenCodes[$code])) {
@@ -54,9 +54,11 @@ class ProductImport implements ToCollection, WithHeadingRow
             $seenCodes[$code] = $excelRow;
         }
 
+        $productService = app(ProductService::class);
+
         // 4. Procesar las filas
         foreach ($rows as $row) {
-            if (empty($row['codigo_producto']) || empty($row['descripcion'])) {
+            if (empty($row['descripcion'])) {
                 continue;
             }
 
@@ -84,12 +86,21 @@ class ProductImport implements ToCollection, WithHeadingRow
                 $hasExpiration = true;
             }
 
+            $tipoStr = trim(strtoupper((string)($row['tipo'] ?? 'MATERIA_PRIMA')));
+            $type = ($tipoStr === 'INSUMO') ? ProductType::SUPPLY : ProductType::RAW_MATERIAL;
+
+            $code = trim((string)($row['codigo_producto'] ?? ''));
+            if ($code === '') {
+                $code = $productService->generateSku($row['descripcion'], [$category->id]);
+            }
+
             $product = Product::updateOrCreate(
-                ['code' => $row['codigo_producto']],
+                ['code' => $code],
                 [
+                    'type' => $type,
                     'name' => $row['descripcion'],
                     'price' => 0.00,
-                    'min_stock' => 5,
+                    'min_stock' => $type === ProductType::RAW_MATERIAL ? 5 : 0,
                     'is_active' => true,
                     'unit_of_measure_id' => $unit->id,
                     'has_expiration' => $hasExpiration,

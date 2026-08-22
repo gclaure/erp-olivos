@@ -28,6 +28,7 @@ const isBasicPlan = computed(() => page.props.company?.plan?.slug === 'basico');
 const form = useForm({
     id: null,
     name: '',
+    type: 'materia_prima',
     code: '',
     description: '',
     price: 0,
@@ -83,6 +84,7 @@ watch(() => props.show, (isVisible) => {
             const newProduct = props.product;
             form.id = newProduct.id;
             form.name = newProduct.name;
+            form.type = newProduct.type || 'materia_prima';
             form.code = newProduct.code || '';
             form.description = newProduct.description || '';
             form.price = newProduct.price;
@@ -104,6 +106,7 @@ watch(() => props.show, (isVisible) => {
             form.new_images = [];
         } else {
             form.reset();
+            form.type = 'materia_prima';
             form.new_images = [];
             if (props.warehouses && props.warehouses.length > 0) {
                 form.warehouse_id = props.warehouses[0].id;
@@ -255,6 +258,56 @@ const removeDriveLink = (index) => {
             <!-- Form Body -->
             <form @submit.prevent="submit" class="p-4 sm:p-6 pt-2">
                 <div class="space-y-5">
+                    <!-- Selector de Tipo de Producto -->
+                    <div class="space-y-1.5">
+                        <label class="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest ml-1">
+                            Tipo de Producto *
+                        </label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <button type="button" @click="form.type = 'materia_prima'"
+                                    :class="[
+                                        form.type === 'materia_prima'
+                                            ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
+                                            : 'border-zinc-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-zinc-600 dark:text-zinc-300 hover:border-zinc-300'
+                                    ]"
+                                    class="flex items-start gap-3 p-3 rounded-xl border text-left transition-all">
+                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                                     :class="form.type === 'materia_prima' ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-gray-700 text-zinc-500'">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-bold">Materia Prima</div>
+                                    <div class="text-[11px] text-zinc-500 dark:text-zinc-400 leading-tight mt-0.5">
+                                        Control de stock, inventario físico y registro en Kardex.
+                                    </div>
+                                </div>
+                            </button>
+
+                            <button type="button" @click="form.type = 'insumo'"
+                                    :class="[
+                                        form.type === 'insumo'
+                                            ? 'border-amber-600 bg-amber-50/60 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20'
+                                            : 'border-zinc-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-zinc-600 dark:text-zinc-300 hover:border-zinc-300'
+                                    ]"
+                                    class="flex items-start gap-3 p-3 rounded-xl border text-left transition-all">
+                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                                     :class="form.type === 'insumo' ? 'bg-amber-600 text-white' : 'bg-zinc-100 dark:bg-gray-700 text-zinc-500'">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-bold">Insumo</div>
+                                    <div class="text-[11px] text-zinc-500 dark:text-zinc-400 leading-tight mt-0.5">
+                                        Consumo directo, siempre disponible, sin control de stock ni Kardex.
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Fila 1: Nombre, Código, Unidad de Medida -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div class="space-y-1">
@@ -263,11 +316,11 @@ const removeDriveLink = (index) => {
                                    class="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-zinc-200 dark:border-gray-600 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 dark:text-white transition-colors">
                         </div>
                         <div class="space-y-1">
-                            <label class="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest ml-1">Código</label>
+                            <label class="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest ml-1">Código (Opcional)</label>
                             <div class="relative group">
-                                <input v-model="form.code" type="text" placeholder="SKU o código (Opcional)"
+                                <input v-model="form.code" type="text" placeholder="Autogenerado si se deja vacío"
                                        class="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-zinc-200 dark:border-gray-600 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 dark:text-white transition-colors">
-                                <button type="button" @click="generateCode"
+                                <button type="button" @click="generateCode" title="Generar código SKU"
                                         class="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-600 hover:text-indigo-800 transition-colors">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4" :class="{ 'animate-spin': isGeneratingCode }">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
@@ -288,17 +341,27 @@ const removeDriveLink = (index) => {
                     <!-- Fila 2: Stock Mínimo, Almacén, Categorías -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div class="space-y-1">
-                            <label class="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest ml-1">Stock Mínimo *</label>
-                            <input v-model="form.min_stock" type="number" placeholder="0" required
+                            <label class="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest ml-1">
+                                Stock Mínimo <span v-if="form.type === 'materia_prima'">*</span>
+                            </label>
+                            <input v-if="form.type === 'materia_prima'" v-model="form.min_stock" type="number" placeholder="0" required min="0" step="any"
                                    class="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-zinc-200 dark:border-gray-600 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 dark:text-white transition-colors">
+                            <div v-else class="w-full px-3 py-2 bg-zinc-100 dark:bg-gray-700/50 border border-zinc-200 dark:border-gray-600 rounded-lg text-xs text-zinc-500 dark:text-zinc-400 flex items-center h-[38px]">
+                                No aplica para insumos
+                            </div>
                         </div>
                         <div class="space-y-1">
-                            <label class="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest ml-1">Almacén *</label>
-                            <select v-model="form.warehouse_id" required
+                            <label class="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest ml-1">
+                                Almacén <span v-if="form.type === 'materia_prima'">*</span>
+                            </label>
+                            <select v-if="form.type === 'materia_prima'" v-model="form.warehouse_id" required
                                     class="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-zinc-200 dark:border-gray-600 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 dark:text-white transition-colors">
                                 <option value="" disabled selected>Seleccionar almacén</option>
                                 <option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name }}</option>
                             </select>
+                            <div v-else class="w-full px-3 py-2 bg-zinc-100 dark:bg-gray-700/50 border border-zinc-200 dark:border-gray-600 rounded-lg text-xs text-zinc-500 dark:text-zinc-400 flex items-center h-[38px]">
+                                Sin asignación de stock
+                            </div>
                         </div>
                         <div class="space-y-1 relative">
                             <label class="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest ml-1">Categorías *</label>

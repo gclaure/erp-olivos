@@ -228,6 +228,7 @@ class PosController extends Controller
                 'package_name',
                 'location',
                 'brand',
+                'type',
                 'has_expiration'
             ])
             ->addSelect(['unit_cost' => $kardexSubquery])
@@ -247,6 +248,9 @@ class PosController extends Controller
                     $sub->where('name', 'ilike', "%{$search}%")
                         ->orWhere('code', 'ilike', "%{$search}%");
                 });
+            })
+            ->when($request->filled('type'), function($q) use ($request) {
+                $q->where('type', $request->get('type'));
             })
             ->orderBy('name')
             ->paginate(20);

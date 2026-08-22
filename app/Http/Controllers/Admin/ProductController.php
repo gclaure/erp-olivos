@@ -35,16 +35,18 @@ class ProductController extends Controller
     {
         $warehouseFilterId = $request->input('warehouse_id');
         $onlyLowStock = $request->boolean('low_stock');
+        $typeFilter = $request->input('type');
         $search = $request->input('search');
 
         $products = Product::query()
-            ->select(['products.id', 'products.name', 'products.code', 'products.price', 'products.min_stock', 'products.is_active', 'products.has_expiration', 'products.unit_of_measure_id', 'products.units_per_package', 'products.package_name', 'products.image_path', 'products.drive_links', 'products.location', 'products.brand', 'products.slug', 'products.description'])
+            ->select(['products.id', 'products.type', 'products.name', 'products.code', 'products.price', 'products.min_stock', 'products.is_active', 'products.has_expiration', 'products.unit_of_measure_id', 'products.units_per_package', 'products.package_name', 'products.image_path', 'products.drive_links', 'products.location', 'products.brand', 'products.slug', 'products.description'])
             ->with(['categories:id,name', 'unitOfMeasure:id,abbreviation', 'stocks.warehouse:id,name'])
             ->withSum(['stocks as current_stock' => function ($query) use ($warehouseFilterId) {
                 if ($warehouseFilterId) {
                     $query->where('warehouse_id', $warehouseFilterId);
                 }
             }], 'quantity')
+            ->when($typeFilter, fn ($q) => $q->where('products.type', $typeFilter))
             ->when($search, fn ($q) => $q->where(fn($subQ) => 
                 $subQ->where('products.name', 'ilike', "%{$search}%")
                      ->orWhere('products.code', 'ilike', "%{$search}%")
@@ -54,7 +56,8 @@ class ProductController extends Controller
                     ? "AND warehouse_id = '{$warehouseFilterId}'" 
                     : "";
                 
-                $query->whereRaw("(SELECT COALESCE(SUM(quantity), 0) FROM stocks WHERE stocks.product_id = products.id {$warehouseCondition}) <= products.min_stock");
+                $query->where('products.type', \App\Enums\ProductType::RAW_MATERIAL->value)
+                    ->whereRaw("(SELECT COALESCE(SUM(quantity), 0) FROM stocks WHERE stocks.product_id = products.id {$warehouseCondition}) <= products.min_stock");
             })
             ->orderBy('products.name')
             ->paginate(12)
@@ -64,8 +67,14 @@ class ProductController extends Controller
             'products' => ProductResource::collection($products),
             'filters' => [
                 'search' => $search,
+                'type' => $typeFilter,
                 'warehouse_id' => $warehouseFilterId,
                 'low_stock' => $onlyLowStock,
+            ],
+            'type_counts' => [
+                'total' => Product::count(),
+                'materia_prima' => Product::where('type', \App\Enums\ProductType::RAW_MATERIAL->value)->count(),
+                'insumo' => Product::where('type', \App\Enums\ProductType::SUPPLY->value)->count(),
             ],
             'categories' => fn() => Category::select('id', 'name')->orderBy('name')->get(),
             'units' => fn() => UnitOfMeasure::select('id', 'name', 'abbreviation')->orderBy('name')->get(),
@@ -107,22 +116,22 @@ class ProductController extends Controller
         $data['drive_links'] = $processedLinks;
         $data['image_path'] = !empty($processedLinks) ? $processedLinks[0] : null;
 
-
-
-        $product = \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request) {
             $product = Product::create($data);
             $product->categories()->sync($request->category_ids);
 
-            // Registrar el stock inicial en cada almacén seleccionado con cantidad 0.00
-            foreach ($request->warehouse_ids as $warehouseId) {
-                \App\Models\Stock::firstOrCreate([
-                    'product_id' => $product->id,
-                    'warehouse_id' => $warehouseId,
-                ], [
-                    'quantity' => 0.00,
-                    'inventory_value' => 0.00,
-                    'average_cost' => 0.00,
-                ]);
+            // Registrar el stock inicial solo si es materia prima
+            if ($product->isRawMaterial() && !empty($request->warehouse_ids)) {
+                foreach ($request->warehouse_ids as $warehouseId) {
+                    \App\Models\Stock::firstOrCreate([
+                        'product_id' => $product->id,
+                        'warehouse_id' => $warehouseId,
+                    ], [
+                        'quantity' => 0.00,
+                        'inventory_value' => 0.00,
+                        'average_cost' => 0.00,
+                    ]);
+                }
             }
 
             return $product;
@@ -134,6 +143,10 @@ class ProductController extends Controller
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse
     {
         $data = $request->validated();
+
+        if (empty($data['code'])) {
+            $data['code'] = $product->code ?: $this->productService->generateSku($data['name'], $request->category_ids);
+        }
 
         $driveLinks = $request->input('drive_links', []);
         $processedLinks = [];
@@ -160,22 +173,22 @@ class ProductController extends Controller
         $data['drive_links'] = $processedLinks;
         $data['image_path'] = !empty($processedLinks) ? $processedLinks[0] : null;
 
-
-
         \Illuminate\Support\Facades\DB::transaction(function () use ($product, $data, $request) {
             $product->update($data);
             $product->categories()->sync($request->category_ids);
 
-            // Asegurar que exista la relación en la tabla stocks para cada almacén seleccionado con cantidad 0.00 si no existía
-            foreach ($request->warehouse_ids as $warehouseId) {
-                \App\Models\Stock::firstOrCreate([
-                    'product_id' => $product->id,
-                    'warehouse_id' => $warehouseId,
-                ], [
-                    'quantity' => 0.00,
-                    'inventory_value' => 0.00,
-                    'average_cost' => 0.00,
-                ]);
+            // Asegurar existencia de relación en tabla stocks solo si es materia prima
+            if ($product->isRawMaterial() && !empty($request->warehouse_ids)) {
+                foreach ($request->warehouse_ids as $warehouseId) {
+                    \App\Models\Stock::firstOrCreate([
+                        'product_id' => $product->id,
+                        'warehouse_id' => $warehouseId,
+                    ], [
+                        'quantity' => 0.00,
+                        'inventory_value' => 0.00,
+                        'average_cost' => 0.00,
+                    ]);
+                }
             }
         });
 

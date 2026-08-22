@@ -19,6 +19,9 @@ class ProductResource extends JsonResource
         return [
             'id' => $this->id,
             'code' => $this->code,
+            'type' => $this->type?->value ?? 'materia_prima',
+            'type_label' => $this->type?->label() ?? 'Materia Prima',
+            'is_inventoriable' => $this->isInventoriable(),
             'name' => $this->name,
             'warehouse_ids' => $this->whenLoaded('stocks', fn () => 
                 $this->stocks->pluck('warehouse_id')->unique()->values()->all()

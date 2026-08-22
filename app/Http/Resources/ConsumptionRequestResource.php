@@ -70,6 +70,9 @@ class ConsumptionRequestResource extends JsonResource
             'details' => ConsumptionRequestDetailResource::collection($this->whenLoaded('details')),
             'has_missing_stock' => $this->whenLoaded('details', function () {
                 foreach ($this->details as $detail) {
+                    if ($detail->product && !$detail->product->isInventoriable()) {
+                        continue;
+                    }
                     $stock = (float) ($detail->product?->stocks->where('warehouse_id', $this->warehouse_id)->first()?->quantity ?? 0);
                     $pending = (float) $detail->quantity_requested - (float) $detail->quantity_delivered;
                     if ($pending > $stock) {

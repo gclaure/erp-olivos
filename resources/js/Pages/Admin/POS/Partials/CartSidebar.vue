@@ -135,6 +135,10 @@ const toggleSpeechRecognition = () => {
 };
 
 const isStockExceeded = (item) => {
+    // Si es un producto de tipo insumo o no inventariable, nunca excede stock (no aplica control de stock físico)
+    if (item.type === 'insumo' || item.is_inventoriable === false) {
+        return false;
+    }
     const itemWarehouseId = item.warehouse_id || page.props.initialConfig?.activeWarehouseId;
     const stockObj = (item.stocks || []).find(s => s.warehouse_id === itemWarehouseId);
     const physicalStock = stockObj ? parseFloat(stockObj.quantity) : 0;
@@ -145,6 +149,9 @@ const isStockExceeded = (item) => {
 };
 
 const getAvailableStock = (item) => {
+    if (item.type === 'insumo' || item.is_inventoriable === false) {
+        return 'N/A';
+    }
     const itemWarehouseId = item.warehouse_id || page.props.initialConfig?.activeWarehouseId;
     const stockObj = (item.stocks || []).find(s => s.warehouse_id === itemWarehouseId);
     const physicalStock = stockObj ? parseFloat(stockObj.quantity) : 0;
@@ -317,11 +324,15 @@ const formatDate = (dateStr) => {
                                 <span class="text-zinc-500 dark:text-secondary-400">{{ item.code }}</span> 
                                 <span v-if="item.unit">- {{ item.unit }}</span>
                             </p>
-                            <!-- Badge de Almacén de origen (solo en modo consumo) -->
-                            <div v-if="operationType === 'consumption' && item.warehouse_name" class="mt-1.5">
-                                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-full">
+                            <!-- Badges de Almacén y Tipo (solo en modo consumo) -->
+                            <div v-if="operationType === 'consumption'" class="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <span v-if="item.warehouse_name" class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-full">
                                     <span class="material-symbols-outlined text-[10px] text-emerald-600 dark:text-emerald-400">warehouse</span>
                                     <span class="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">{{ item.warehouse_name }}</span>
+                                </span>
+                                <span v-if="item.type === 'insumo' || item.is_inventoriable === false" class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-full">
+                                    <span class="material-symbols-outlined text-[10px] text-amber-600 dark:text-amber-400">label</span>
+                                    <span class="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider">Insumo</span>
                                 </span>
                             </div>
                         </div>
