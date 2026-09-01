@@ -3,14 +3,19 @@ import Pusher from 'pusher-js';
 
 window.Pusher = Pusher;
 
-if (import.meta.env.VITE_REVERB_APP_KEY) {
-    window.Echo = new Echo({
-        broadcaster: 'reverb',
-        key: import.meta.env.VITE_REVERB_APP_KEY,
-        wsHost: import.meta.env.VITE_REVERB_HOST ?? window.location.hostname,
-        wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
-        wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
-        forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
-        enabledTransports: ['ws', 'wss'],
-    });
-}
+const reverbKey = import.meta.env.VITE_REVERB_APP_KEY || 'xzuby3q7gyfuxvrnwesw';
+const isHttps = window.location.protocol === 'https:';
+const reverbHost = import.meta.env.VITE_REVERB_HOST || window.location.hostname;
+const reverbPort = import.meta.env.VITE_REVERB_PORT ? Number(import.meta.env.VITE_REVERB_PORT) : (isHttps ? 443 : 8080);
+const forceTLS = import.meta.env.VITE_REVERB_SCHEME ? import.meta.env.VITE_REVERB_SCHEME === 'https' : isHttps;
+
+window.Echo = new Echo({
+    broadcaster: 'reverb',
+    key: reverbKey,
+    wsHost: reverbHost,
+    wsPort: reverbPort,
+    wssPort: reverbPort,
+    forceTLS: forceTLS,
+    enabledTransports: ['ws', 'wss'],
+});
+
