@@ -4,7 +4,7 @@ FROM node:20-alpine AS build-assets
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+RUN npm install -g pnpm && pnpm config set ignore-scripts false && pnpm install --frozen-lockfile
 
 COPY . .
 
