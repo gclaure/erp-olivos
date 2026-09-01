@@ -103,6 +103,7 @@ Route::group(['prefix' => 'consumption-requests', 'as' => 'consumption-requests.
     Route::post('/{consumption_request}/cancel', [ConsumptionRequestController::class, 'cancel'])->name('cancel');
     Route::post('/{consumption_request}/approve', [ConsumptionRequestController::class, 'approve'])->name('approve');
     Route::post('/{consumption_request}/observe', [ConsumptionRequestController::class, 'observe'])->name('observe');
+    Route::put('/{consumption_request}/details/{detail}', [ConsumptionRequestController::class, 'updateDetailQuantity'])->name('update-detail-quantity');
 });
 
 // Ventas (Redireccionado a Consumo)

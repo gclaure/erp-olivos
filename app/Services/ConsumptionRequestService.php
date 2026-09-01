@@ -90,6 +90,36 @@ class ConsumptionRequestService
     }
 
     /**
+     * Actualiza la cantidad solicitada de un producto en la solicitud (Administrador).
+     */
+    public function updateDetailQuantity(
+        ConsumptionRequest $consumptionRequest,
+        ConsumptionRequestDetail $detail,
+        float $newQuantity,
+        ?string $notes = null
+    ): ConsumptionRequestDetail {
+        if (!in_array($consumptionRequest->status, ['pendiente', 'observado'])) {
+            throw new Exception("Solo se puede modificar la cantidad solicitada de productos en estado pendiente u observado.");
+        }
+
+        if ($detail->consumption_request_id !== $consumptionRequest->id) {
+            throw new Exception("El producto no pertenece a esta solicitud de consumo.");
+        }
+
+        if ($newQuantity <= 0) {
+            throw new Exception("La cantidad solicitada debe ser mayor a 0.");
+        }
+
+        $detail->quantity_requested = $newQuantity;
+        if (!empty($notes)) {
+            $detail->observation = trim($notes);
+        }
+        $detail->save();
+
+        return $detail;
+    }
+
+    /**
      * Recepciona una solicitud de consumo interno (Área Solicitante).
      * 
      * @param ConsumptionRequest $consumptionRequest

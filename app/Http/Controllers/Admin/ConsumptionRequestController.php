@@ -8,11 +8,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\SaveConsumptionRequest;
 use App\Http\Resources\ConsumptionRequestResource;
 use App\Models\ConsumptionRequest;
+use App\Models\ConsumptionRequestDetail;
 use App\Models\Warehouse;
 use App\Models\User;
 use App\Facades\Branch;
 use App\Services\ConsumptionRequestService;
 use App\Notifications\NuevaSolicitudConsumoNotification;
+use App\Notifications\SolicitudConsumoCanceladaNotification;
+use App\Notifications\SolicitudConsumoModificadaNotification;
 use App\Events\NuevaNotificacion;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -149,7 +152,7 @@ class ConsumptionRequestController extends Controller
 
             if (empty($requestedBy)) {
                 return redirect()->back()->withErrors([
-                    'error' => 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Eventos) para registrar consumos.'
+                    'error' => 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Panadería, Eventos) para registrar consumos.'
                 ]);
             }
 
@@ -357,6 +360,16 @@ class ConsumptionRequestController extends Controller
 
     public function cancel(Request $request, ConsumptionRequest $consumptionRequest): RedirectResponse
     {
+        $user = auth()->user();
+        if (!$user) {
+            abort(403);
+        }
+
+        $isAdmin = $user->hasRole(['Admin', 'admin', 'Administrador', 'administrador']) || $user->is_super_admin;
+        if (!$isAdmin) {
+            return back()->withErrors(['error' => 'Solo los administradores pueden cancelar las solicitudes de consumo.']);
+        }
+
         $request->validate([
             'cancellation_notes' => ['required', 'string', 'min:5', 'max:500'],
         ], [
@@ -365,16 +378,176 @@ class ConsumptionRequestController extends Controller
         ]);
 
         try {
-            $this->consumptionRequestService->cancelRequest($consumptionRequest, (string) $request->input('cancellation_notes'));
+            $notes = (string) $request->input('cancellation_notes');
+            $this->consumptionRequestService->cancelRequest($consumptionRequest, $notes);
 
-            // Disparar evento de actualización en tiempo real por socket
+            $consumptionRequest->loadMissing(['warehouse.branch', 'user']);
+
+            // 1. Notificar al creador de la solicitud
+            $creator = $consumptionRequest->user;
+            if ($creator && $creator->is_active) {
+                $notification = new SolicitudConsumoCanceladaNotification($consumptionRequest, $notes);
+                $creator->notify($notification);
+
+                try {
+                    NuevaNotificacion::dispatch(
+                        (string) $creator->id,
+                        $notification->toArray($creator)['message'],
+                        'consumption_request_cancelled'
+                    );
+                } catch (\Throwable) {
+                    // Silencioso si Reverb no está disponible
+                }
+            }
+
+            // 2. Notificar al personal de Almacén de la sucursal
+            $branchId = $consumptionRequest->warehouse->branch_id;
+            $warehouseUsers = User::whereHas('roles', function ($q) {
+                $q->whereIn('name', ['Almacén', 'almacen', 'Almacen', 'almacén']);
+            })
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->get();
+
+            $wNotification = new SolicitudConsumoCanceladaNotification($consumptionRequest, $notes);
+            foreach ($warehouseUsers as $wUser) {
+                if ($creator && $wUser->id === $creator->id) {
+                    continue; // Evitar duplicados
+                }
+                $wUser->notify($wNotification);
+
+                try {
+                    NuevaNotificacion::dispatch(
+                        (string) $wUser->id,
+                        $wNotification->toArray($wUser)['message'],
+                        'consumption_request_cancelled'
+                    );
+                } catch (\Throwable) {
+                    // Silencioso si Reverb no está disponible
+                }
+            }
+
+            // Disparar evento de actualización en tiempo real por socket en sucursal
             try {
-                event(new \App\Events\ConsumptionRequestUpdated($consumptionRequest, 'observed'));
+                event(new \App\Events\ConsumptionRequestUpdated($consumptionRequest, 'cancelled'));
             } catch (\Throwable) {
                 // Silencioso si Reverb no está disponible
             }
 
             return redirect()->back()->with('success', 'Solicitud cancelada correctamente.');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => $e->getMessage()]);
+        }
+    }
+
+    public function updateDetailQuantity(
+        Request $request,
+        ConsumptionRequest $consumptionRequest,
+        ConsumptionRequestDetail $detail
+    ): RedirectResponse {
+        $user = auth()->user();
+        if (!$user) {
+            abort(403);
+        }
+
+        $isAdmin = $user->hasRole(['Admin', 'admin', 'Administrador', 'administrador']) || $user->is_super_admin;
+        if (!$isAdmin) {
+            return back()->withErrors(['error' => 'Solo los administradores pueden modificar las cantidades de las solicitudes.']);
+        }
+
+        $request->validate([
+            'quantity_requested' => ['required', 'numeric', 'min:0.01'],
+            'modification_notes' => ['nullable', 'string', 'max:500'],
+        ], [
+            'quantity_requested.required' => 'La cantidad solicitada es obligatoria.',
+            'quantity_requested.min' => 'La cantidad solicitada debe ser mayor a 0.',
+        ]);
+
+        try {
+            $oldQty = (float) $detail->quantity_requested;
+            $newQty = (float) $request->input('quantity_requested');
+            $notes = $request->input('modification_notes');
+
+            $detail->loadMissing(['product.unitOfMeasure']);
+            $productName = $detail->product?->name ?? 'Producto';
+            $unitName = $detail->product?->unitOfMeasure?->name ?? 'UND';
+
+            $this->consumptionRequestService->updateDetailQuantity(
+                $consumptionRequest,
+                $detail,
+                $newQty,
+                $notes
+            );
+
+            $consumptionRequest->loadMissing(['warehouse.branch', 'user']);
+
+            // 1. Notificar al creador
+            $creator = $consumptionRequest->user;
+            if ($creator && $creator->is_active) {
+                $notification = new SolicitudConsumoModificadaNotification(
+                    $consumptionRequest,
+                    $productName,
+                    $oldQty,
+                    $newQty,
+                    $unitName,
+                    $notes
+                );
+                $creator->notify($notification);
+
+                try {
+                    NuevaNotificacion::dispatch(
+                        (string) $creator->id,
+                        $notification->toArray($creator)['message'],
+                        'consumption_request_modified'
+                    );
+                } catch (\Throwable) {
+                    // Silencioso si Reverb no está disponible
+                }
+            }
+
+            // 2. Notificar al personal de Almacén
+            $branchId = $consumptionRequest->warehouse->branch_id;
+            $warehouseUsers = User::whereHas('roles', function ($q) {
+                $q->whereIn('name', ['Almacén', 'almacen', 'Almacen', 'almacén']);
+            })
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->get();
+
+            $wNotification = new SolicitudConsumoModificadaNotification(
+                $consumptionRequest,
+                $productName,
+                $oldQty,
+                $newQty,
+                $unitName,
+                $notes
+            );
+
+            foreach ($warehouseUsers as $wUser) {
+                if ($creator && $wUser->id === $creator->id) {
+                    continue;
+                }
+                $wUser->notify($wNotification);
+
+                try {
+                    NuevaNotificacion::dispatch(
+                        (string) $wUser->id,
+                        $wNotification->toArray($wUser)['message'],
+                        'consumption_request_modified'
+                    );
+                } catch (\Throwable) {
+                    // Silencioso si Reverb no está disponible
+                }
+            }
+
+            // Disparar evento de socket en sucursal
+            try {
+                event(new \App\Events\ConsumptionRequestUpdated($consumptionRequest, 'item_updated'));
+            } catch (\Throwable) {
+                // Silencioso si Reverb no está disponible
+            }
+
+            return redirect()->back()->with('success', "Cantidad del producto '{$productName}' actualizada correctamente a {$newQty} {$unitName}.");
         } catch (\Exception $e) {
             return redirect()->back()->withErrors(['error' => $e->getMessage()]);
         }

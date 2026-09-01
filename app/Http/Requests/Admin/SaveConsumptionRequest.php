@@ -26,7 +26,7 @@ class SaveConsumptionRequest extends FormRequest
         return [
             // warehouse_id en raíz es opcional: cada ítem trae su propio warehouse_id
             'warehouse_id'            => ['nullable', 'uuid', 'exists:warehouses,id'],
-            'requested_by'            => ['nullable', 'string', 'in:Cocina,Pastelería,Eventos', 'max:100'],
+            'requested_by'            => ['nullable', 'string', 'in:Cocina,Pastelería,Panadería,Panaderia,Eventos', 'max:100'],
             'notes'                   => ['nullable', 'string'],
             'cart'                    => ['required', 'array', 'min:1'],
             'cart.*.id'               => ['required', 'uuid', 'exists:products,id'],

@@ -165,15 +165,28 @@ const subscribeToBranch = (branchId) => {
                             });
                         }
 
-                        if (e.action === 'cancelled' && isWarehouseRole.value) {
+                        if (e.action === 'cancelled' && (isWarehouseRole.value || isConsumidorRole.value)) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'error',
+                                title: `Solicitud Cancelada #${number}`,
+                                text: 'El administrador canceló esta solicitud.',
+                                showConfirmButton: false,
+                                timer: 6000,
+                                timerProgressBar: true
+                            });
+                        }
+
+                        if (e.action === 'item_updated' && (isWarehouseRole.value || isConsumidorRole.value)) {
                             Swal.fire({
                                 toast: true,
                                 position: 'top-end',
                                 icon: 'info',
-                                title: `Solicitud Cancelada #${number}`,
-                                text: 'El consumidor canceló esta solicitud.',
+                                title: `Cantidad Modificada #${number}`,
+                                text: 'El administrador actualizó la cantidad solicitada de los insumos.',
                                 showConfirmButton: false,
-                                timer: 5000,
+                                timer: 6000,
                                 timerProgressBar: true
                             });
                         }
@@ -485,7 +498,7 @@ const primaryMobileAction = computed(() => {
     if (!isConsumidorRole.value && (s === 'pendiente' || s === 'aprobado' || s === 'despachado_parcial') && !isFullyStocked.value) {
         return { type: 'purchase', label: 'Comprar Faltantes', icon: 'shopping_cart', class: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30' };
     }
-    if (isConsumidorRole.value && s === 'pendiente') {
+    if (isAdmin.value && s === 'aprobado') {
         return { type: 'cancel', label: 'Cancelar Solicitud', icon: 'close', class: 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400' };
     }
     return null;
@@ -796,6 +809,89 @@ const handleCancel = () => {
                         icon: 'success',
                         title: 'Solicitud Cancelada',
                         text: page.props.flash?.success || 'La solicitud fue anulada.',
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+                },
+                onError: (errors) => {
+                    const firstError = Object.values(errors)[0];
+                    Swal.fire('Error', firstError, 'error');
+                }
+            });
+        }
+    });
+};
+
+const handleEditQuantity = (item) => {
+    Swal.fire({
+        title: 'Modificar Cantidad Solicitada',
+        html: `
+            <div class="text-left space-y-3" style="font-family: inherit;">
+                <p class="text-xs text-zinc-600 dark:text-secondary-300 font-semibold">
+                    Producto: <span class="font-black text-zinc-900 dark:text-white uppercase">${item.product_name}</span>
+                </p>
+                <div>
+                    <label class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1">
+                        Nueva Cantidad Solicitada (${item.unit_of_measure}) *
+                    </label>
+                    <input 
+                        id="swal-edit-qty" 
+                        type="number" 
+                        step="0.01" 
+                        min="0.01" 
+                        value="${item.quantity_requested}" 
+                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-bold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-800 dark:text-secondary-100"
+                    />
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1">
+                        Motivo / Observación (Opcional)
+                    </label>
+                    <textarea 
+                        id="swal-edit-notes" 
+                        rows="2" 
+                        maxlength="500" 
+                        placeholder="Explique el motivo del cambio..." 
+                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y"
+                    ></textarea>
+                </div>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar Cambio',
+        cancelButtonText: 'Cancelar',
+        customClass: {
+            popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
+            title: 'text-zinc-900 dark:text-white font-black',
+            confirmButton: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
+            cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
+        },
+        buttonsStyling: false,
+        preConfirm: () => {
+            const inputQty = document.getElementById('swal-edit-qty');
+            const inputNotes = document.getElementById('swal-edit-notes');
+            const qtyVal = parseFloat(inputQty ? inputQty.value : '0');
+            if (isNaN(qtyVal) || qtyVal <= 0) {
+                Swal.showValidationMessage('La cantidad solicitada debe ser un número mayor a 0.');
+                return false;
+            }
+            return {
+                quantity_requested: qtyVal,
+                modification_notes: (inputNotes ? inputNotes.value : '').trim()
+            };
+        }
+    }).then((result) => {
+        if (result.isConfirmed && result.value) {
+            router.put(route('admin.consumption-requests.update-detail-quantity', {
+                consumption_request: request.value.id,
+                detail: item.id
+            }), result.value, {
+                onSuccess: (page) => {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Cantidad Actualizada',
+                        text: page.props.flash?.success || 'La cantidad solicitada se modificó correctamente.',
                         timer: 3000,
                         showConfirmButton: false
                     });
@@ -1231,10 +1327,21 @@ const prevImage = () => {
 
                                     <!-- CANTIDAD SOLICITADA -->
                                     <td class="px-4 py-4 text-center whitespace-nowrap">
-                                        <span class="text-xs font-black font-mono text-zinc-900 dark:text-secondary-100">
-                                            {{ item.quantity_requested }}
-                                        </span>
-                                        <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase ml-1">{{ item.unit_of_measure }}</span>
+                                        <div class="inline-flex items-center justify-center gap-1.5">
+                                            <span class="text-xs font-black font-mono text-zinc-900 dark:text-secondary-100">
+                                                {{ item.quantity_requested }}
+                                            </span>
+                                            <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase">{{ item.unit_of_measure }}</span>
+                                            <button 
+                                                v-if="isAdmin && (request.status === 'pendiente' || request.status === 'observado')"
+                                                @click="handleEditQuantity(item)"
+                                                type="button"
+                                                class="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors ml-0.5"
+                                                title="Editar cantidad solicitada"
+                                            >
+                                                <span class="material-symbols-outlined text-[15px]">edit</span>
+                                            </button>
+                                        </div>
                                     </td>
 
                                     <!-- RECEPCIÓN (SI CORRESPONDE) -->
@@ -1440,11 +1547,22 @@ const prevImage = () => {
 
                             <!-- Grid 2x2 de Métricas en Móvil -->
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-zinc-100 dark:border-secondary-700/50 bg-zinc-50/50 dark:bg-secondary-900/30 p-2.5 rounded-2xl text-center">
-                                <div class="flex flex-col">
+                                <div class="flex flex-col items-center justify-center">
                                     <span class="text-[8px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-wider">Solicitado</span>
-                                    <span class="text-xs font-black font-mono text-zinc-800 dark:text-secondary-100 mt-0.5">
-                                        {{ item.quantity_requested }} {{ item.unit_of_measure }}
-                                    </span>
+                                    <div class="inline-flex items-center gap-1 mt-0.5">
+                                        <span class="text-xs font-black font-mono text-zinc-800 dark:text-secondary-100">
+                                            {{ item.quantity_requested }} {{ item.unit_of_measure }}
+                                        </span>
+                                        <button 
+                                            v-if="isAdmin && (request.status === 'pendiente' || request.status === 'observado')"
+                                            @click="handleEditQuantity(item)"
+                                            type="button"
+                                            class="p-0.5 rounded text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                                            title="Editar cantidad"
+                                        >
+                                            <span class="material-symbols-outlined text-[14px]">edit</span>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div v-if="!isConsumidorRole" class="flex flex-col">
@@ -1628,9 +1746,9 @@ const prevImage = () => {
                         <span>Comprar Faltantes</span>
                     </button>
 
-                    <!-- Cancelar solicitud (Consumidor en pendiente) -->
+                    <!-- Cancelar solicitud (Administrador en pendiente, observado o aprobado) -->
                     <button 
-                        v-if="isConsumidorRole && request.status === 'pendiente'"
+                        v-if="isAdmin && (request.status === 'pendiente' || request.status === 'observado' || request.status === 'aprobado')"
                         @click="handleCancel"
                         class="w-full py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-2xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 border border-rose-200/50 dark:border-rose-900/30"
                     >

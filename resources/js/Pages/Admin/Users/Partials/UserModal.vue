@@ -38,6 +38,7 @@ const areaDropdownRef = ref(null);
 const areas = [
     { label: 'Cocina', value: 'Cocina' },
     { label: 'Pastelería', value: 'Pastelería' },
+    { label: 'Panadería', value: 'Panadería' },
     { label: 'Eventos', value: 'Eventos' }
 ];
 

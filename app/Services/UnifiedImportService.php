@@ -79,19 +79,38 @@ readonly class UnifiedImportService
             $type = ($cleanTipo === 'INSUMO') ? 'insumo' : 'materia_prima';
 
             $date = $this->parseDate($row['fecha_compra'] ?? null);
-            $qty = (float)($row['cantidad'] ?? 0);
-            $cost = (float)($row['costo_unitario'] ?? 0);
+            $rawQty = $row['cantidad'] ?? 0;
+            $qty = ($rawQty === '' || $rawQty === null) ? 0.0 : (float)$rawQty;
+            $rawCost = $row['costo_unitario'] ?? null;
+            $cost = ($rawCost === '' || $rawCost === null) ? 0.0 : (float)$rawCost;
             $hasExpiration = strtoupper(trim((string)($row['tiene_vencimiento'] ?? 'NO'))) === 'SI';
             $unitsPerPackage = (float)($row['unidades_por_empaque'] ?? 1);
             $packageName = (string)($row['nombre_empaque'] ?? '');
 
             // Row-level validations
             $rowErrors = [];
-            if ($qty <= 0) $rowErrors[] = "Cantidad debe ser estrictamente mayor a 0.";
-            if (!$date) {
-                $rowErrors[] = "Fecha de compra inválida.";
-            } elseif ($date->isFuture()) {
-                $rowErrors[] = "La fecha de compra no puede estar en el futuro respecto a la zona horaria del servidor.";
+            if (!is_numeric($rawQty !== '' && $rawQty !== null ? $rawQty : 0) || $qty < 0) {
+                $rowErrors[] = "Cantidad debe ser un número mayor o igual a 0.";
+            }
+
+            if ($qty > 0) {
+                if ($rawCost === null || $rawCost === '' || !is_numeric($rawCost) || $cost < 0) {
+                    $rowErrors[] = "Costo unitario es obligatorio cuando la cantidad es mayor a 0 y debe ser un valor numérico mayor o igual a 0.";
+                }
+
+                if (!$date) {
+                    $rowErrors[] = "Fecha de compra es obligatoria cuando la cantidad es mayor a 0.";
+                } elseif ($date->isFuture()) {
+                    $rowErrors[] = "La fecha de compra no puede estar en el futuro respecto a la zona horaria del servidor.";
+                }
+            } else {
+                if ($rawCost !== null && $rawCost !== '' && (!is_numeric($rawCost) || $cost < 0)) {
+                    $rowErrors[] = "Costo unitario no puede ser negativo.";
+                }
+
+                if ($date && $date->isFuture()) {
+                    $rowErrors[] = "La fecha de compra no puede estar en el futuro respecto a la zona horaria del servidor.";
+                }
             }
 
             if (count($rowErrors) > 0) {
@@ -115,7 +134,7 @@ readonly class UnifiedImportService
                     'clean_desc' => $cleanDesc,
                     'categoria' => $cleanCat,
                     'unidad_de_medida' => $cleanUom,
-                    'fecha_compra' => $date->format('Y-m-d'),
+                    'fecha_compra' => $date ? $date->format('Y-m-d') : null,
                     'cantidad' => $qty,
                     'costo_unitario' => $cost,
                     'tiene_vencimiento' => $hasExpiration,
@@ -298,9 +317,7 @@ readonly class UnifiedImportService
 
             foreach ($details as $detail) {
                 $data = $detail->row_data;
-                $subtotal = BigDecimal::of($data['calculated_subtotal']);
-                $totalPurchase = $totalPurchase->plus($subtotal);
-                $metrics['total_stock_added'] += (float) $data['cantidad'];
+                $qtyVal = (float) ($data['cantidad'] ?? 0);
 
                 if ($data['was_created'] ?? false) {
                     $metrics['created_count']++;
@@ -308,30 +325,38 @@ readonly class UnifiedImportService
                     $metrics['updated_count']++;
                 }
 
-                $purchaseDetails[] = [
-                    'product_id' => $data['calculated_product_id'],
-                    'quantity' => $data['cantidad'],
-                    'unit_price' => $data['costo_unitario'],
-                    'subtotal' => (string) $subtotal,
-                ];
+                if ($qtyVal > 0) {
+                    $subtotal = BigDecimal::of($data['calculated_subtotal']);
+                    $totalPurchase = $totalPurchase->plus($subtotal);
+                    $metrics['total_stock_added'] += $qtyVal;
+
+                    $purchaseDetails[] = [
+                        'product_id' => $data['calculated_product_id'],
+                        'quantity' => $data['cantidad'],
+                        'unit_price' => $data['costo_unitario'],
+                        'subtotal' => (string) $subtotal,
+                    ];
+                }
             }
 
-            $purchaseData = [
-                'provider_id' => $providerId,
-                'warehouse_id' => $warehouseId,
-                'user_id' => $userId,
-                'date' => Carbon::now(config('app.timezone'))->format('Y-m-d'),
-                'notes' => 'Ingreso Automático por Importación Masiva (Asíncrona).',
-                'total' => (string) $totalPurchase->toScale(2, RoundingMode::HALF_UP),
-                'payment_type' => 'contado',
-                'status' => 'completada',
-                'voucher_type' => 'sin_factura',
-            ];
+            if (!empty($purchaseDetails)) {
+                $purchaseData = [
+                    'provider_id' => $providerId,
+                    'warehouse_id' => $warehouseId,
+                    'user_id' => $userId,
+                    'date' => Carbon::now(config('app.timezone'))->format('Y-m-d'),
+                    'notes' => 'Ingreso Automático por Importación Masiva (Asíncrona).',
+                    'total' => (string) $totalPurchase->toScale(2, RoundingMode::HALF_UP),
+                    'payment_type' => 'contado',
+                    'status' => 'completada',
+                    'voucher_type' => 'sin_factura',
+                ];
 
-            \App\Observers\StockObserver::$muteNotifications = true;
-            $purchase = $this->purchaseService->createPurchase($purchaseData, $purchaseDetails, false);
-            \App\Observers\StockObserver::$muteNotifications = false;
-            $metrics['purchase_id'] = $purchase->id;
+                \App\Observers\StockObserver::$muteNotifications = true;
+                $purchase = $this->purchaseService->createPurchase($purchaseData, $purchaseDetails, false);
+                \App\Observers\StockObserver::$muteNotifications = false;
+                $metrics['purchase_id'] = $purchase->id;
+            }
 
             $log->update([
                 'status' => 'completed',
@@ -405,20 +430,23 @@ readonly class UnifiedImportService
 
                 $product->categories()->syncWithoutDetaching([$category->id]);
 
-                // 3. Prepare Purchase Detail
-                $qty = BigDecimal::of($data['cantidad']);
-                $cost = BigDecimal::of($data['costo_unitario']);
-                $subtotal = $qty->multipliedBy($cost);
+                // 3. Prepare Purchase Detail (only if quantity > 0)
+                $qtyVal = (float) ($data['cantidad'] ?? 0);
+                if ($qtyVal > 0) {
+                    $qty = BigDecimal::of($data['cantidad']);
+                    $cost = BigDecimal::of($data['costo_unitario']);
+                    $subtotal = $qty->multipliedBy($cost);
 
-                $totalPurchase = $totalPurchase->plus($subtotal);
-                $metrics['total_stock_added'] += $data['cantidad'];
+                    $totalPurchase = $totalPurchase->plus($subtotal);
+                    $metrics['total_stock_added'] += $qtyVal;
 
-                $purchaseDetails[] = [
-                    'product_id' => $product->id,
-                    'quantity' => $data['cantidad'],
-                    'unit_price' => $data['costo_unitario'],
-                    'subtotal' => (string) $subtotal->toScale(2, RoundingMode::HALF_UP),
-                ];
+                    $purchaseDetails[] = [
+                        'product_id' => $product->id,
+                        'quantity' => $data['cantidad'],
+                        'unit_price' => $data['costo_unitario'],
+                        'subtotal' => (string) $subtotal->toScale(2, RoundingMode::HALF_UP),
+                    ];
+                }
                 
                 ImportLogDetail::create([
                     'import_log_id' => $log->id,
@@ -428,23 +456,25 @@ readonly class UnifiedImportService
                 ]);
             }
 
-            // 4. Create the consolidated Purchase for the entire batch
-            $purchaseData = [
-                'provider_id' => $providerId,
-                'warehouse_id' => $warehouseId,
-                'user_id' => $userId,
-                'date' => Carbon::now(config('app.timezone'))->format('Y-m-d'), // Use today for the operational purchase
-                'notes' => 'Ingreso Automático por Importación Unificada.',
-                'total' => (string) $totalPurchase->toScale(2, RoundingMode::HALF_UP),
-                'payment_type' => 'contado', // assume fully paid or just a stock intake
-                'status' => 'completada',
-                'voucher_type' => 'sin_factura',
-            ];
+            // 4. Create the consolidated Purchase for the entire batch only if there are details
+            if (!empty($purchaseDetails)) {
+                $purchaseData = [
+                    'provider_id' => $providerId,
+                    'warehouse_id' => $warehouseId,
+                    'user_id' => $userId,
+                    'date' => Carbon::now(config('app.timezone'))->format('Y-m-d'), // Use today for the operational purchase
+                    'notes' => 'Ingreso Automático por Importación Unificada.',
+                    'total' => (string) $totalPurchase->toScale(2, RoundingMode::HALF_UP),
+                    'payment_type' => 'contado', // assume fully paid or just a stock intake
+                    'status' => 'completada',
+                    'voucher_type' => 'sin_factura',
+                ];
 
-            \App\Observers\StockObserver::$muteNotifications = true;
-            $purchase = $this->purchaseService->createPurchase($purchaseData, $purchaseDetails, false);
-            \App\Observers\StockObserver::$muteNotifications = false;
-            $metrics['purchase_id'] = $purchase->id;
+                \App\Observers\StockObserver::$muteNotifications = true;
+                $purchase = $this->purchaseService->createPurchase($purchaseData, $purchaseDetails, false);
+                \App\Observers\StockObserver::$muteNotifications = false;
+                $metrics['purchase_id'] = $purchase->id;
+            }
 
             $log->update([
                 'status' => 'completed',
