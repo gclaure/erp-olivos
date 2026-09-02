@@ -13,6 +13,7 @@ import { usePOSConfig } from '@/Composables/POS/usePOSConfig';
 import ProductCatalog from './Partials/ProductCatalog.vue';
 import CartSidebar from './Partials/CartSidebar.vue';
 import ConfirmSaleModal from './Partials/ConfirmSaleModal.vue';
+import ProductDetailModal from './Partials/ProductDetailModal.vue';
 
 const props = defineProps({
     initialConfig: Object,
@@ -20,6 +21,7 @@ const props = defineProps({
     warehouses: Array,
     shippingHistory: Object,
     initialQuotation: Object,
+    editingRequest: Object,
 });
 
 defineOptions({ layout: AdminLayout });
@@ -28,7 +30,7 @@ defineOptions({ layout: AdminLayout });
 const { 
     items, globalDiscount, isFixedDiscount, deliveryCost, deliveryMode,
     grossSubtotal, subtotal, globalDiscountAmount, totalDiscounts, finalTotal, 
-    addItem, removeItem, updateQuantity, updateDiscount, clearCart, loadQuotation 
+    addItem, removeItem, updateQuantity, updateDiscount, clearCart, loadQuotation, loadItems 
 } = useCart(props.initialConfig?.isFixedDiscount ?? false);
 
 const { warehouseId, posId, setWarehouse, setPOS } = usePOSConfig(props.initialConfig || {});
@@ -46,9 +48,16 @@ const searchClients = () => {};
 const selectedClient = ref(null);
 const showConfirmModal = ref(false);
 const showClientModal = ref(false);
+const showProductDetailModal = ref(false);
+const selectedDetailProduct = ref(null);
 const activeTab = ref('products'); // 'products' o 'cart'
 const cartCount = computed(() => items.value.length);
 const receiptType = ref(props.initialConfig.receiptType || 'media');
+
+const openProductDetail = (product) => {
+    selectedDetailProduct.value = product;
+    showProductDetailModal.value = true;
+};
 
 const toggleReceiptType = () => {
     const newVal = receiptType.value === 'media' ? 'rollo' : 'media';
@@ -179,9 +188,7 @@ const handleConfirmSale = (paymentData) => {
 };
 
 const handleSubmitConsumption = (consumptionData) => {
-    // Enviar cada ítem con su warehouse_id individual para permitir
-    // que el backend cree solicitudes separadas por almacén
-    router.post(route('admin.consumption-requests.store'), {
+    const payload = {
         requested_by: consumptionData.requested_by,
         notes: consumptionData.notes,
         cart: items.value.map(item => ({
@@ -189,27 +196,48 @@ const handleSubmitConsumption = (consumptionData) => {
             quantity: item.quantity,
             warehouse_id: item.warehouse_id ?? warehouseId.value
         }))
-    }, {
-        onSuccess: (page) => {
-            const data = page.props.flash?.success_data;
-            if (data?.id) {
-                const printUrl = route('admin.consumption-requests.print', { consumption_request: data.id });
-                window.open(printUrl, '_blank');
+    };
+
+    if (props.editingRequest?.id) {
+        router.put(route('admin.consumption-requests.update', { consumption_request: props.editingRequest.id }), payload, {
+            onSuccess: (page) => {
+                clearCart();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Solicitud Actualizada',
+                    text: page.props.flash?.success || 'Los cambios en la solicitud de consumo fueron guardados exitosamente.',
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            },
+            onError: (errors) => {
+                const firstError = Object.values(errors)[0];
+                Swal.fire('Error', firstError, 'error');
             }
-            clearCart();
-            Swal.fire({
-                icon: 'success',
-                title: 'Solicitud Enviada',
-                text: page.props.flash?.success || 'La solicitud de consumo ha sido enviada al almacenero.',
-                timer: 3000,
-                showConfirmButton: false
-            });
-        },
-        onError: (errors) => {
-            const firstError = Object.values(errors)[0];
-            Swal.fire('Error', firstError, 'error');
-        }
-    });
+        });
+    } else {
+        router.post(route('admin.consumption-requests.store'), payload, {
+            onSuccess: (page) => {
+                const data = page.props.flash?.success_data;
+                if (data?.id) {
+                    const printUrl = route('admin.consumption-requests.print', { consumption_request: data.id });
+                    window.open(printUrl, '_blank');
+                }
+                clearCart();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Solicitud Enviada',
+                    text: page.props.flash?.success || 'La solicitud de consumo ha sido enviada al almacenero.',
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            },
+            onError: (errors) => {
+                const firstError = Object.values(errors)[0];
+                Swal.fire('Error', firstError, 'error');
+            }
+        });
+    }
 };
 
 onMounted(() => {
@@ -222,12 +250,14 @@ onMounted(() => {
             phone: props.initialQuotation.client_phone
         });
         clientQuery.value = props.initialQuotation.client_name;
+    } else if (props.editingRequest?.items) {
+        loadItems(props.editingRequest.items);
     }
 });
 </script>
 
 <template>
-    <Head title="Caja" />    <div class="flex flex-col lg:flex-row h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] bg-zinc-100 dark:bg-secondary-900 -m-4 lg:-m-6 overflow-hidden relative pb-16 lg:pb-0">
+    <Head :title="editingRequest ? `Editar Solicitud #${editingRequest.formatted_number || editingRequest.number}` : (initialConfig?.operationType === 'consumption' ? 'Solicitud de Consumo' : 'Caja')" />    <div class="flex flex-col lg:flex-row h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] bg-zinc-100 dark:bg-secondary-900 -m-4 lg:-m-6 overflow-hidden relative pb-16 lg:pb-0">
         <div class="flex flex-col lg:flex-row items-stretch w-full h-full lg:h-full overflow-hidden">
             <!-- PANEL IZQUIERDO: CATÁLOGO DE PRODUCTOS (55%) -->
             <ProductCatalog 
@@ -245,6 +275,7 @@ onMounted(() => {
                 @add-to-cart="handleAddProduct"
                 @update-quantity="updateQuantity"
                 @change-warehouse="handleChangeWarehouse"
+                @show-detail="openProductDetail"
                 :class="activeTab === 'products' ? 'flex' : 'hidden lg:flex'"
             />
 
@@ -258,6 +289,8 @@ onMounted(() => {
                 :is-fixed-discount="isFixedDiscount"
                 :clients="clients"
                 :loading-clients="loadingClients"
+                :editing-request="editingRequest"
+                :initial-notes="editingRequest?.notes"
                 @select-client="handleSelectClient"
                 @remove-from-cart="removeItem"
                 @update-quantity="updateQuantity"
@@ -268,7 +301,7 @@ onMounted(() => {
                 @toggle-receipt-type="toggleReceiptType"
                 @submit-consumption="handleSubmitConsumption"
                 :receipt-type="receiptType"
-                :is-editing="!!initialQuotation"
+                :is-editing="!!initialQuotation || !!editingRequest"
                 :operation-type="initialConfig.operationType"
                 class="border-zinc-200 dark:border-secondary-700"
                 :class="activeTab === 'cart' ? 'flex' : 'hidden lg:flex'"
@@ -330,6 +363,16 @@ onMounted(() => {
             @confirm="handleConfirmSale"
             @open-client-modal="showClientModal = true"
             @client-updated="v => selectedClient = v"
+        />
+
+        <!-- MODAL DE DETALLE DEL PRODUCTO -->
+        <ProductDetailModal 
+            :show="showProductDetailModal"
+            :product="selectedDetailProduct"
+            :operation-type="initialConfig.operationType"
+            :cart="items"
+            @close="showProductDetailModal = false"
+            @add-to-cart="handleAddProduct"
         />
 
         <!-- ClientModal removido ya que el módulo de clientes fue eliminado -->

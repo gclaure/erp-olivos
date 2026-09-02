@@ -52,6 +52,55 @@ class ConsumptionRequestService
     }
 
     /**
+     * Actualiza una solicitud de consumo existente (solo si está pendiente y no ha sido aprobada).
+     */
+    public function updateRequest(ConsumptionRequest $consumptionRequest, array $data, array $items): ConsumptionRequest
+    {
+        return DB::transaction(function () use ($consumptionRequest, $data, $items) {
+            if ($consumptionRequest->status !== 'pendiente' || !is_null($consumptionRequest->approved_at)) {
+                throw new Exception("Solo se pueden modificar solicitudes en estado pendiente de aprobación.");
+            }
+
+            $user = Auth::user();
+            if ($consumptionRequest->user_id !== $user?->id && !$user?->is_super_admin) {
+                throw new Exception("Solo el creador de la solicitud puede modificarla.");
+            }
+
+            if (empty($items)) {
+                throw new Exception("La solicitud debe contener al menos un producto.");
+            }
+
+            $consumptionRequest->update([
+                'notes' => $data['notes'] ?? $consumptionRequest->notes,
+                'date' => $data['date'] ?? $consumptionRequest->date,
+            ]);
+
+            $newItemProductIds = collect($items)->pluck('id')->toArray();
+
+            // Eliminar detalles que ya no están en la solicitud
+            $consumptionRequest->details()->whereNotIn('product_id', $newItemProductIds)->delete();
+
+            // Actualizar existentes o crear nuevos
+            foreach ($items as $item) {
+                $detail = $consumptionRequest->details()->where('product_id', $item['id'])->first();
+                if ($detail) {
+                    $detail->update([
+                        'quantity_requested' => $item['quantity'],
+                    ]);
+                } else {
+                    $consumptionRequest->details()->create([
+                        'product_id' => $item['id'],
+                        'quantity_requested' => $item['quantity'],
+                        'quantity_delivered' => 0.0,
+                    ]);
+                }
+            }
+
+            return $consumptionRequest->fresh(['warehouse', 'user', 'details.product']);
+        });
+    }
+
+    /**
      * Despacha el stock físico disponible para una solicitud de consumo.
      */
     public function dispatchRequest(

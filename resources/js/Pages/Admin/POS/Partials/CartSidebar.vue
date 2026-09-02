@@ -15,6 +15,8 @@ const props = defineProps({
     isFixedDiscount: Boolean,
     receiptType: String,
     isEditing: Boolean,
+    initialNotes: String,
+    editingRequest: Object,
     operationType: {
         type: String,
         default: 'sale'
@@ -41,7 +43,7 @@ const currentUser = computed(() => page.props.auth?.user);
 const paymentMethod = ref('efectivo');
 
 // Estado para Consumos Internos
-const notes = ref('');
+const notes = ref(props.initialNotes || props.editingRequest?.notes || '');
 const isListening = ref(false);
 let recognition = null;
 let silenceTimer = null;
@@ -135,13 +137,17 @@ const toggleSpeechRecognition = () => {
 };
 
 const isStockExceeded = (item) => {
+    // En solicitudes de consumo nunca se bloquea ni se marca error por stock
+    if (props.operationType === 'consumption') {
+        return false;
+    }
     // Si es un producto de tipo insumo o no inventariable, nunca excede stock (no aplica control de stock físico)
     if (item.type === 'insumo' || item.is_inventoriable === false) {
         return false;
     }
     const itemWarehouseId = item.warehouse_id || page.props.initialConfig?.activeWarehouseId;
     const stockObj = (item.stocks || []).find(s => s.warehouse_id === itemWarehouseId);
-    const physicalStock = stockObj ? parseFloat(stockObj.quantity) : 0;
+    const physicalStock = stockObj ? parseFloat(stockObj.quantity) : (item.stock !== undefined ? parseFloat(item.stock) : 0);
     const reservedStock = parseFloat(item.reserved_quantity || 0);
     const availableStock = Math.max(0, physicalStock - reservedStock);
     const requestedStock = parseFloat(item.quantity || 0);
@@ -154,12 +160,15 @@ const getAvailableStock = (item) => {
     }
     const itemWarehouseId = item.warehouse_id || page.props.initialConfig?.activeWarehouseId;
     const stockObj = (item.stocks || []).find(s => s.warehouse_id === itemWarehouseId);
-    const physicalStock = stockObj ? parseFloat(stockObj.quantity) : 0;
+    const physicalStock = stockObj ? parseFloat(stockObj.quantity) : (item.stock !== undefined ? parseFloat(item.stock) : 0);
     const reservedStock = parseFloat(item.reserved_quantity || 0);
     return Math.max(0, physicalStock - reservedStock);
 };
 
 const hasStockErrors = computed(() => {
+    if (props.operationType === 'consumption') {
+        return false;
+    }
     return props.cart.some(item => isStockExceeded(item));
 });
 
@@ -543,14 +552,17 @@ const formatDate = (dateStr) => {
                     :class="[
                         hasStockErrors 
                             ? 'bg-zinc-400 dark:bg-secondary-700 text-zinc-300 cursor-not-allowed shadow-none' 
-                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-500/20',
+                            : (editingRequest || isEditing ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-lg hover:shadow-amber-500/20' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-500/20'),
                         'w-full py-3.5 transition-colors rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2'
                     ]"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
+                    <svg v-if="editingRequest || isEditing" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                    </svg>
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
                     </svg>
-                    {{ hasStockErrors ? 'Corrija el stock excedido' : 'Enviar Solicitud de Consumo' }}
+                    {{ hasStockErrors ? 'Corrija el stock excedido' : (editingRequest || isEditing ? 'Guardar Cambios de Solicitud' : 'Enviar Solicitud de Consumo') }}
                 </button>
             </div>
 

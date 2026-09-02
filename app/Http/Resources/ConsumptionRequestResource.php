@@ -81,6 +81,7 @@ class ConsumptionRequestResource extends JsonResource
                 }
                 return false;
             }, false),
+            'can_edit' => $this->status === 'pendiente' && is_null($this->approved_at) && (auth()->check() && (auth()->id() === $this->user_id || auth()->user()?->is_super_admin)),
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'created_at_time' => $this->created_at?->format('H:i'),
         ];

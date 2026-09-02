@@ -17,23 +17,20 @@ class RolesAndPermissionsSeeder extends Seeder
 
         // Define Permissions
         $permissions = [
-            'manage-users' => 'Gestionar Usuarios',
-            'manage-roles' => 'Gestionar Roles',
-            'manage-branches' => 'Administrar sucursales',
-            'manage-warehouses' => 'Gestionar Almacenes',
-            'manage-pos' => 'Gestionar Puntos de Venta',
-            'manage-products' => 'Gestionar Productos',
-            'manage-categories' => 'Gestionar Categorías',
-            'manage-inventory' => 'Gestionar Inventario',
-            'manage-purchases' => 'Gestionar Compras',
-            'manage-sales' => 'Gestionar Ventas',
-            'pos-access' => 'Acceso al POS',
-            'view-reports' => 'Ver Reportes',
-            'manage-settings' => 'Gestionar Configuración',
-            'manage-company' => 'Gestionar Datos de Empresa',
-            'manage-transfers' => 'Gestionar Transferencias',
-            'manage-providers' => 'Gestionar Proveedores',
-            'manage-clients' => 'Gestionar Clientes',
+            'create-consumption' => 'Registrar Consumo',
+            'manage-consumption' => 'Gestionar Consumos',
+            'manage-inventory'   => 'Gestionar Inventario',
+            'manage-products'    => 'Gestionar Productos',
+            'manage-categories'  => 'Gestionar Categorías',
+            'manage-warehouses'  => 'Gestionar Almacenes',
+            'create-purchases'   => 'Crear Compras',
+            'manage-purchases'   => 'Gestionar Compras',
+            'manage-providers'   => 'Gestionar Proveedores',
+            'manage-users'       => 'Gestionar Usuarios',
+            'manage-roles'       => 'Gestionar Roles',
+            'manage-company'     => 'Gestionar Datos de Empresa',
+            'manage-branches'    => 'Administrar Sucursales',
+            'view-reports'       => 'Ver Reportes BI',
         ];
 
         foreach ($permissions as $name => $label) {
@@ -53,11 +50,18 @@ class RolesAndPermissionsSeeder extends Seeder
         $warehouseRole = Role::firstOrCreate(['name' => 'Almacén', 'guard_name' => 'web']);
         $warehouseRole->syncPermissions([
             'manage-products',
-            'manage-inventory',
             'manage-categories',
             'manage-warehouses',
-            'manage-providers',
+            'manage-inventory',
+            'manage-consumption',
             'manage-purchases',
+            'manage-providers',
+        ]);
+
+        // 4. Consumidor (Asignar permiso de solicitud de consumo)
+        $consumerRole = Role::firstOrCreate(['name' => 'Consumidor', 'guard_name' => 'web']);
+        $consumerRole->syncPermissions([
+            'create-consumption',
         ]);
     }
 }

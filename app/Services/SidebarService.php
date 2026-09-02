@@ -79,18 +79,24 @@ class SidebarService
                         'route' => 'admin.movements.index',
                         'permission' => 'manage-inventory',
                     ],
-
+                ]
+            ],
+            [
+                'label' => 'Consumos',
+                'icon' => 'clipboard-document-list',
+                'permission' => null,
+                'children' => [
                     [
                         'label' => 'Registrar Consumo',
                         'icon' => 'computer-desktop',
                         'route' => 'admin.consumption-requests.create',
-                        'permission' => 'manage-inventory',
+                        'permission' => 'create-consumption',
                     ],
                     [
                         'label' => 'Consumos Solicitados',
                         'icon' => 'clipboard-document-list',
                         'route' => 'admin.consumption-requests.index',
-                        'permission' => 'manage-inventory',
+                        'permission' => 'manage-consumption',
                     ],
                 ]
             ],
@@ -189,11 +195,6 @@ class SidebarService
         $filtered = [];
 
         foreach ($items as $item) {
-            // Bloquear acceso del menú "Registrar Consumo" al rol Almacén
-            if (isset($item['route']) && $item['route'] === 'admin.consumption-requests.create' && $user->hasRole(['Almacén', 'almacen'])) {
-                continue;
-            }
-
             // Filtrar si es exclusivo de Super Admin o Administrador
             $isSuperAdmin = $user->is_super_admin;
             $isAdmin = $user->hasRole(['Admin', 'Administrador', 'admin', 'administrador']);
@@ -215,11 +216,11 @@ class SidebarService
                 continue;
             }
 
-            // Permitir que el Consumidor visualice "Registrar Consumo" y "Consumos Solicitados" en el sidebar
-            if (isset($item['route']) && 
-                in_array($item['route'], ['admin.consumption-requests.create', 'admin.consumption-requests.index']) && 
-                $user->hasRole(['Consumidor', 'consumidor'])) {
-                $filtered[] = $item;
+            // Permitir acceso a Consumos Solicitados si tiene manage-consumption o create-consumption
+            if (isset($item['route']) && $item['route'] === 'admin.consumption-requests.index') {
+                if ($user->can('manage-consumption') || $user->can('create-consumption')) {
+                    $filtered[] = $item;
+                }
                 continue;
             }
 

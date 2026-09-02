@@ -160,26 +160,20 @@ const confirmDelete = (id, type) => {
 };
 
 const permissionDescriptions = {
+    'create-consumption': 'Permite solicitar insumos y registrar pedidos de consumo interno desde el catálogo.',
+    'manage-consumption': 'Revisa, aprueba, despacha y cancela solicitudes de consumo interno.',
+    'manage-inventory': 'Controla stock, ajustes manuales (mermas) y movimientos (Kardex).',
+    'manage-products': 'Crea y edita el catálogo de productos y unidades de medida.',
+    'manage-categories': 'Organiza y clasifica productos en grupos y categorías.',
+    'manage-warehouses': 'Organiza los depósitos físicos y almacenes de mercancía.',
     'create-purchases': 'Registra nuevas facturas de compra de mercancía.',
-    'create-sales': 'Realiza ventas directas desde el Punto de Venta (POS).',
-    'manage-categories': 'Organiza y clasifica productos en grupos lógicos.',
-    'manage-clients': 'Administra la base de datos de compradores y sus créditos.',
-    'manage-inventory': 'Controla stock, ajustes manuales y traslados (Kardex).',
-    'manage-products': 'Crea y edita el catálogo de artículos y sus precios.',
-    'manage-providers': 'Administra la información de los abastecedores.',
-    'manage-purchases': 'Ver historial de compras y gestionar estados de pago.',
+    'manage-purchases': 'Ver historial de compras, órdenes de compra y estados de pago.',
+    'manage-providers': 'Administra la información de los abastecedores y proveedores.',
+    'manage-users': 'Administra las cuentas de acceso de los usuarios y empleados.',
     'manage-roles': 'Define perfiles de seguridad y asigna permisos.',
-    'manage-sales': 'Revisa facturación, cotizaciones y anulaciones.',
-    'manage-deliveries': 'Administra la logística y despacho de ventas realizadas.',
-    'manage-settings': 'Ajusta el perfil del usuario y preferencias del sistema.',
-    'manage-users': 'Administra las cuentas de acceso de los empleados.',
-    'manage-warehouses': 'Organiza los depósitos físicos de mercancía.',
-    'view-reports': 'Accede a analíticas de ventas y rendimiento del negocio.',
-    'manage-branches': 'Gestiona las sedes físicas y puntos de venta.',
-    'pos-access': 'Habilita la interfaz táctil de ventas rápidas (Puntos de Venta).',
-    'manage-pos': 'Administra los puntos de venta de la empresa.',
-    'manage-transfers': 'Gestiona traslados de mercancía entre almacenes.',
     'manage-company': 'Modifica logo y configuración legal de la compañía.',
+    'manage-branches': 'Gestiona las sedes físicas y sucursales de la empresa.',
+    'view-reports': 'Accede a analíticas y reportes de compras, inventario y consumos.',
 };
 
 const translatePermission = (name) => {

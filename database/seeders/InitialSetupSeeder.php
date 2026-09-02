@@ -28,29 +28,21 @@ class InitialSetupSeeder extends Seeder
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
         // 2. Define all permissions
-
-        // 3. Define all permissions
         $permissionNames = [
-            'create-purchases',
-            'create-sales',
-            'manage-categories',
-            'manage-clients',
+            'create-consumption',
+            'manage-consumption',
             'manage-inventory',
             'manage-products',
-            'manage-providers',
-            'manage-purchases',
-            'manage-roles',
-            'manage-sales',
-            'manage-settings',
-            'manage-users',
+            'manage-categories',
             'manage-warehouses',
+            'create-purchases',
+            'manage-purchases',
+            'manage-providers',
+            'manage-users',
+            'manage-roles',
+            'manage-company',
             'manage-branches',
             'view-reports',
-            'pos-access',
-            'manage-pos',
-            'manage-transfers',
-            'manage-deliveries',
-            'manage-company',
         ];
 
         foreach ($permissionNames as $name) {

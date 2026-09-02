@@ -40,9 +40,9 @@ const initThree = () => {
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
 
-    const emeraldColor = new THREE.Color('#10b981');
-    const tealColor = new THREE.Color('#14b8a6');
-    const indigoColor = new THREE.Color('#6366f1');
+    const olivePrimary = new THREE.Color('#73AC32');
+    const forestSecondary = new THREE.Color('#44773C');
+    const salviaAccent = new THREE.Color('#A8C98A');
 
     for (let i = 0; i < particleCount * 3; i += 3) {
         let posX, posY;
@@ -57,7 +57,7 @@ const initThree = () => {
         positions[i + 2] = (Math.random() - 0.5) * 20;
 
         const mixRatio = Math.random();
-        const chosenColor = mixRatio < 0.6 ? emeraldColor : (mixRatio < 0.85 ? tealColor : indigoColor);
+        const chosenColor = mixRatio < 0.55 ? olivePrimary : (mixRatio < 0.85 ? salviaAccent : forestSecondary);
         colors[i] = chosenColor.r;
         colors[i + 1] = chosenColor.g;
         colors[i + 2] = chosenColor.b;
@@ -70,7 +70,7 @@ const initThree = () => {
         size: 0.45,
         vertexColors: true,
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.65,
         blending: THREE.AdditiveBlending,
     });
 
@@ -81,7 +81,7 @@ const initThree = () => {
     cubesGroup = new THREE.Group();
     const boxGeometry = new THREE.BoxGeometry(2.2, 2.2, 2.2);
     const boxMaterial = new THREE.MeshBasicMaterial({
-        color: 0x10b981,
+        color: 0x73AC32,
         wireframe: true,
         transparent: true,
         opacity: 0.22,

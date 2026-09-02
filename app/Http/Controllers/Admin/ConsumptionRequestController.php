@@ -227,6 +227,139 @@ class ConsumptionRequestController extends Controller
     }
 
     /**
+     * Show the edit interface for a pending consumption request.
+     */
+    public function edit(ConsumptionRequest $consumptionRequest): Response
+    {
+        $user = auth()->user();
+
+        // Validaciones estrictas: solo estado pendiente, sin aprobar y propietario (o super admin)
+        if ($consumptionRequest->status !== 'pendiente' || !is_null($consumptionRequest->approved_at)) {
+            abort(403, 'Solo se pueden editar solicitudes en estado pendiente de aprobación.');
+        }
+
+        if ($consumptionRequest->user_id !== $user?->id && !$user?->is_super_admin) {
+            abort(403, 'Solo el creador de la solicitud puede editarla.');
+        }
+
+        $consumptionRequest->load([
+            'warehouse',
+            'details.product.stocks' => function($q) use ($consumptionRequest) {
+                $q->where('warehouse_id', $consumptionRequest->warehouse_id);
+            },
+            'details.product.unitOfMeasure',
+            'details.product.categories'
+        ]);
+
+        $branchId = $consumptionRequest->warehouse?->branch_id ?? Branch::getActiveBranchId();
+
+        $initialConfig = [
+            'activeWarehouseId' => $consumptionRequest->warehouse_id,
+            'activePosId' => null,
+            'warehouseName' => $consumptionRequest->warehouse?->name ?? 'ALMACÉN CENTRAL',
+            'posName' => 'Consumo',
+            'isFixedDiscount' => false,
+            'operationType' => 'consumption',
+            'permissions' => auth()->user()->getAllPermissions()->pluck('name')->toArray(),
+        ];
+
+        $warehouses = Warehouse::where('branch_id', $branchId)
+            ->select('id', 'name')
+            ->where('is_active', true)
+            ->get();
+
+        // Formatear items de la solicitud para el carrito
+        $cartItems = $consumptionRequest->details->map(function ($detail) use ($consumptionRequest) {
+            $product = $detail->product;
+            $stock = $product?->stocks?->first();
+            $physicalStock = (float)($stock?->quantity ?? 0);
+            $reservedStock = (float)($product?->reserved_quantity ?? 0);
+            $availableStock = max(0, $physicalStock - $reservedStock);
+
+            return [
+                'id' => $detail->product_id,
+                'name' => $product?->name ?? 'Producto',
+                'code' => $product?->code ?? '',
+                'quantity' => (float)$detail->quantity_requested,
+                'price' => (float)($product?->price ?? 0),
+                'discount' => 0,
+                'stock' => $availableStock,
+                'stocks' => $product?->stocks ? $product->stocks->map(fn($s) => [
+                    'warehouse_id' => $s->warehouse_id,
+                    'quantity' => (float)$s->quantity,
+                ])->toArray() : [],
+                'is_stock_exceeded' => false,
+                'warehouse_id' => $consumptionRequest->warehouse_id,
+                'warehouse_name' => $consumptionRequest->warehouse?->name ?? '',
+                'unit_of_measure' => $product?->unitOfMeasure?->name ?? 'UND',
+                'type' => $product?->type ?? 'material',
+                'is_inventoriable' => (bool)($product?->is_inventoriable ?? true),
+                'image_path' => $product?->image_path,
+            ];
+        })->values()->toArray();
+
+        $editingRequest = [
+            'id' => $consumptionRequest->id,
+            'number' => $consumptionRequest->number,
+            'formatted_number' => $consumptionRequest->formatted_number,
+            'notes' => $consumptionRequest->notes ?? '',
+            'requested_by' => $consumptionRequest->requested_by,
+            'items' => $cartItems,
+        ];
+
+        return Inertia::render('Admin/POS/Index', [
+            'initialConfig' => $initialConfig,
+            'pointsOfSale' => [],
+            'warehouses' => $warehouses,
+            'shippingHistory' => ['companies' => [], 'origins' => [], 'destinations' => []],
+            'initialQuotation' => null,
+            'editingRequest' => $editingRequest,
+        ]);
+    }
+
+    /**
+     * Update an existing pending consumption request.
+     */
+    public function update(SaveConsumptionRequest $request, ConsumptionRequest $consumptionRequest): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($consumptionRequest->status !== 'pendiente' || !is_null($consumptionRequest->approved_at)) {
+            return redirect()->back()->withErrors([
+                'error' => 'Solo se pueden modificar solicitudes en estado pendiente de aprobación.'
+            ]);
+        }
+
+        if ($consumptionRequest->user_id !== $user?->id && !$user?->is_super_admin) {
+            return redirect()->back()->withErrors([
+                'error' => 'Solo el creador de la solicitud puede modificarla.'
+            ]);
+        }
+
+        try {
+            $data = $request->validated();
+            $items = $data['cart'] ?? [];
+
+            $updated = $this->consumptionRequestService->updateRequest($consumptionRequest, $data, $items);
+
+            // Disparar evento de actualización en tiempo real por socket
+            try {
+                event(new \App\Events\ConsumptionRequestUpdated($updated, 'updated'));
+            } catch (\Throwable) {
+                // Silencioso si Reverb no está disponible
+            }
+
+            return redirect()->route('admin.consumption-requests.show', $updated->id)->with([
+                'success' => "Solicitud de consumo #{$updated->number} actualizada exitosamente."
+            ]);
+        } catch (Exception $e) {
+            return redirect()->back()->withErrors([
+                'error' => 'Error al actualizar la solicitud: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
      * Display the detail of a consumption request.
      */
     public function show(ConsumptionRequest $consumptionRequest): Response
@@ -721,7 +854,12 @@ class ConsumptionRequestController extends Controller
         $consumptionRequest->load([
             'warehouse.branch.company',
             'user',
-            'details.product.unitOfMeasure'
+            'approvedByUser',
+            'dispatchedByUser',
+            'receivedByUser',
+            'observedByUser',
+            'cancelledByUser',
+            'details.product.unitOfMeasure',
         ]);
 
         $pdf = Pdf::loadView('admin.consumption-requests.receipt', [

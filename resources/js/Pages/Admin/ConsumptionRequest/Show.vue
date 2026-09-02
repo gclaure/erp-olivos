@@ -486,6 +486,9 @@ const lifecycleSteps = computed(() => {
 // Acción Principal Móvil
 const primaryMobileAction = computed(() => {
     const s = request.value?.status;
+    if (request.value?.can_edit && isConsumidorRole.value) {
+        return { type: 'edit', label: 'Editar Solicitud', icon: 'edit', class: 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/30' };
+    }
     if (isAdmin.value && (s === 'pendiente' || s === 'observado')) {
         return { type: 'approve', label: 'Aprobar Solicitud', icon: 'check', class: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30' };
     }
@@ -504,8 +507,93 @@ const primaryMobileAction = computed(() => {
     return null;
 });
 
+const getItemStatusInfo = (item) => {
+    const s = request.value?.status;
+    const reqQty = parseFloat(item.quantity_requested || 0);
+    const delivQty = parseFloat(item.quantity_delivered || 0);
+    const recvQty = item.quantity_received !== null && item.quantity_received !== undefined ? parseFloat(item.quantity_received) : null;
+    const inputQty = receivedQuantities.value[item.id] !== undefined ? parseFloat(receivedQuantities.value[item.id]) : null;
+
+    // 1. Estado final entregado
+    if (s === 'entregado' || recvQty !== null) {
+        const finalRecv = recvQty !== null ? recvQty : delivQty;
+        const hasDiff = Math.abs(finalRecv - reqQty) >= 0.01;
+        if (hasDiff) {
+            return {
+                label: `RECIBIDO CON DIFERENCIA (${finalRecv.toFixed(0)}/${reqQty.toFixed(0)})`,
+                icon: 'warning',
+                class: 'bg-amber-500 text-white shadow-sm font-extrabold'
+            };
+        }
+        return {
+            label: 'RECIBIDO CONFORME',
+            icon: 'check_circle',
+            class: 'bg-emerald-600 text-white shadow-sm font-extrabold'
+        };
+    }
+
+    // 2. Estado despachado o despachado parcial (Esperando recepción del Consumidor)
+    if (s === 'despachado' || s === 'despachado_parcial') {
+        if (delivQty > 0) {
+            if (isConsumidorRole.value) {
+                if (inputQty !== null && Math.abs(inputQty - reqQty) >= 0.01) {
+                    return {
+                        label: `CON DIFERENCIA (${inputQty} de ${reqQty})`,
+                        icon: 'difference',
+                        class: 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 font-black'
+                    };
+                }
+                return {
+                    label: 'POR CONFIRMAR RECEPCIÓN',
+                    icon: 'inventory',
+                    class: 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-black'
+                };
+            }
+
+            // Para Almacén / Admin
+            if (delivQty >= reqQty) {
+                return {
+                    label: 'DESPACHADO',
+                    icon: 'local_shipping',
+                    class: 'bg-fuchsia-600 text-white shadow-sm font-extrabold'
+                };
+            }
+            return {
+                label: `DESPACHO PARCIAL (${delivQty.toFixed(0)}/${reqQty.toFixed(0)})`,
+                icon: 'local_shipping',
+                class: 'bg-indigo-600 text-white shadow-sm font-extrabold'
+            };
+        }
+    }
+
+    // 3. Fases previas (Pendiente, Aprobado, Observado, etc.)
+    const available = parseFloat(item.stock_available || 0);
+    const pendingToDeliver = reqQty - delivQty;
+
+    if (available >= pendingToDeliver) {
+        return {
+            label: 'DISPONIBLE',
+            icon: 'check',
+            class: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/10 dark:bg-emerald-500/10 dark:text-emerald-400 font-bold'
+        };
+    }
+    if (available > 0) {
+        return {
+            label: 'STOCK PARCIAL',
+            icon: 'hourglass_empty',
+            class: 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/10 dark:bg-amber-500/10 dark:text-amber-400 font-bold'
+        };
+    }
+    return {
+        label: 'SIN STOCK',
+        icon: 'cancel',
+        class: 'bg-rose-50 text-rose-700 ring-1 ring-rose-600/10 dark:bg-rose-500/10 dark:text-rose-400 font-bold'
+    };
+};
+
 const executeMobileAction = (type) => {
     switch (type) {
+        case 'edit': router.get(route('admin.consumption-requests.edit', { consumption_request: request.value.id })); break;
         case 'approve': handleApprove(); break;
         case 'dispatch': handleDispatch(); break;
         case 'receive': handleReceive(); break;
@@ -1001,6 +1089,19 @@ const prevImage = () => {
             </nav>
 
             <div class="flex items-center gap-2">
+                <!-- Botón Editar Solicitud (solo creador y en estado pendiente sin aprobar) -->
+                <Link 
+                    v-if="request.can_edit"
+                    :href="route('admin.consumption-requests.edit', { consumption_request: request.id })" 
+                    class="inline-flex items-center justify-center h-9 px-3.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all gap-1.5 shadow-sm shadow-amber-500/20"
+                    title="Modificar productos, cantidades o notas de esta solicitud"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                    </svg>
+                    <span>Editar Solicitud</span>
+                </Link>
+
                 <a 
                     :href="route('admin.consumption-requests.print', { consumption_request: request.id })" 
                     target="_blank"
@@ -1214,6 +1315,34 @@ const prevImage = () => {
                     </div>
                 </div>
 
+                <!-- BANNER GUÍA DE RECEPCIÓN PARA EL CONSUMIDOR -->
+                <div 
+                    v-if="isConsumidorRole && (request.status === 'despachado' || request.status === 'despachado_parcial')"
+                    class="p-4 rounded-3xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs"
+                >
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm shadow-indigo-600/30">
+                            <span class="material-symbols-outlined text-xl">inventory</span>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-black text-indigo-950 dark:text-indigo-200 uppercase tracking-wide">
+                                Despacho Listo para Recepción
+                            </h4>
+                            <p class="text-[11px] text-indigo-850 dark:text-indigo-300 font-medium leading-relaxed mt-0.5">
+                                Almacén ya preparó y envió tus insumos. Revisa las cantidades recibidas en la columna <strong>Recibido</strong> y presiona el botón para confirmar la recepción física.
+                            </p>
+                        </div>
+                    </div>
+                    <button 
+                        type="button"
+                        @click="handleReceive"
+                        class="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 flex-shrink-0 cursor-pointer"
+                    >
+                        <span class="material-symbols-outlined text-[16px]">check_circle</span>
+                        <span>Confirmar Recepción</span>
+                    </button>
+                </div>
+
                 <!-- CONTENEDOR DE INSUMOS SOLICITADOS -->
                 <div class="bg-white dark:bg-secondary-800 rounded-3xl border border-zinc-200/70 dark:border-secondary-700/80 shadow-sm overflow-hidden transition-all duration-300">
                     <div class="px-5 py-4 border-b border-zinc-100 dark:border-secondary-700 flex items-center justify-between">
@@ -1417,40 +1546,11 @@ const prevImage = () => {
                                     <!-- BADGE DE ESTADO DEL ITEM -->
                                     <td class="px-5 py-4 whitespace-nowrap text-right">
                                         <span 
-                                            v-if="item.quantity_delivered >= item.quantity_requested && request.status === 'entregado'"
-                                            class="inline-flex items-center gap-1 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-emerald-600 text-white shadow-sm"
+                                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] tracking-wider transition-all"
+                                            :class="getItemStatusInfo(item).class"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
-                                                <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4.12-5.671Z" clip-rule="evenodd" />
-                                            </svg>
-                                            ENTREGADO
-                                        </span>
-                                        <span 
-                                            v-else-if="item.quantity_delivered >= item.quantity_requested"
-                                            class="inline-flex items-center gap-1 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-fuchsia-600 text-white shadow-sm"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124l-.321-5.128a1.125 1.125 0 0 0-1.122-1.053H14.5a1.5 1.5 0 0 0-1.5 1.5v4.5m10.5-3H12" />
-                                            </svg>
-                                            DESPACHADO
-                                        </span>
-                                        <span 
-                                            v-else-if="item.stock_available >= (item.quantity_requested - item.quantity_delivered)"
-                                            class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/10 dark:bg-emerald-500/10 dark:text-emerald-400"
-                                        >
-                                            DISPONIBLE
-                                        </span>
-                                        <span 
-                                            v-else-if="item.stock_available > 0"
-                                            class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 ring-1 ring-amber-600/10 dark:bg-amber-500/10 dark:text-amber-400"
-                                        >
-                                            STOCK PARCIAL
-                                        </span>
-                                        <span 
-                                            v-else
-                                            class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 ring-1 ring-rose-600/10 dark:bg-rose-500/10 dark:text-rose-400"
-                                        >
-                                            SIN STOCK
+                                            <span class="material-symbols-outlined text-[13px]">{{ getItemStatusInfo(item).icon }}</span>
+                                            {{ getItemStatusInfo(item).label }}
                                         </span>
                                     </td>
                                 </tr>
@@ -1490,34 +1590,11 @@ const prevImage = () => {
                                         </span>
                                         <div>
                                             <span 
-                                                v-if="item.quantity_delivered >= item.quantity_requested && request.status === 'entregado'"
-                                                class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest bg-emerald-600 text-white"
+                                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] tracking-wider"
+                                                :class="getItemStatusInfo(item).class"
                                             >
-                                                ENTREGADO
-                                            </span>
-                                            <span 
-                                                v-else-if="item.quantity_delivered >= item.quantity_requested"
-                                                class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest bg-fuchsia-600 text-white"
-                                            >
-                                                DESPACHADO
-                                            </span>
-                                            <span 
-                                                v-else-if="item.stock_available >= (item.quantity_requested - item.quantity_delivered)"
-                                                class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
-                                            >
-                                                DISPONIBLE
-                                            </span>
-                                            <span 
-                                                v-else-if="item.stock_available > 0"
-                                                class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-                                            >
-                                                STOCK PARCIAL
-                                            </span>
-                                            <span 
-                                                v-else
-                                                class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"
-                                            >
-                                                SIN STOCK
+                                                <span class="material-symbols-outlined text-[11px]">{{ getItemStatusInfo(item).icon }}</span>
+                                                {{ getItemStatusInfo(item).label }}
                                             </span>
                                         </div>
                                     </div>

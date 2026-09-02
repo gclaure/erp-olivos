@@ -8,7 +8,7 @@ const props = defineProps({
     cart: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['add', 'update-quantity']);
+const emit = defineEmits(['add', 'update-quantity', 'show-detail']);
 
 const page = usePage();
 
@@ -80,18 +80,16 @@ const updateInput = (e) => {
     qty.value = Math.min(v, maxQty.value);
 };
 
-const handleAdd = () => {
-    if (!hasStock.value || isInCart.value) return;
-    emit('add', props.product, qty.value);
-    qty.value = 1;
+const handleCardClick = () => {
+    emit('show-detail', props.product);
 };
 </script>
 
 <template>
     <div 
-        @click="handleAdd"
-        :title="isConsumerView ? product.name : (operationType === 'consumption' ? `${product.name}\n${isSupply ? 'Insumo (Disponible)' : `Stock disponible: ${Math.floor(availableQty)}`}` : `${product.name}\nPrecio: ${parseFloat(product.price).toFixed(2)} Bs.\n${isSupply ? 'Insumo' : `Stock disponible: ${Math.floor(availableQty)}`}`)"
-        class="relative rounded-xl sm:rounded-2xl overflow-hidden flex flex-col transition-all duration-300 group bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 cursor-pointer"
+        @click="handleCardClick"
+        :title="product.name"
+        class="relative rounded-xl sm:rounded-2xl overflow-hidden flex flex-col transition-all duration-300 group bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/10 cursor-pointer"
         :class="{ 'opacity-60 cursor-not-allowed': !hasStock }"
     >
         <!-- Imagen del producto -->
@@ -110,19 +108,18 @@ const handleAdd = () => {
                 <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.125a3.375 3.375 0 0 1-3.375 3.375H7.75a3.375 3.375 0 0 1-3.375-3.375L3.75 7.5m16.5 0-1.25-2.25a3.375 3.375 0 0 0-3-1.5H8a3.375 3.375 0 0 0-3 1.5L3.75 7.5m16.5 0h-16.5" />
             </svg>
             
-            <!-- Overlay hover con botón + (solo productos con stock disponible) -->
+            <!-- Overlay hover con botón Ver Detalles -->
             <div 
-                v-if="hasStock"
                 class="hidden lg:flex absolute inset-0 bg-secondary-900/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-all duration-300 items-center justify-center z-20"
             >
                 <div class="flex flex-col items-center gap-2 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 ease-out">
-                    <div class="w-12 h-12 bg-emerald-600 dark:bg-emerald-500 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 active:scale-95">
+                    <div class="w-12 h-12 bg-blue-600 dark:bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 active:scale-95">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                         </svg>
                     </div>
-                    <span class="px-3 py-1 bg-emerald-600 dark:bg-emerald-500 text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-lg">
-                        Agregar
+                    <span class="px-3 py-1 bg-blue-600 dark:bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-lg">
+                        Ver Detalles
                     </span>
                 </div>
             </div>
@@ -130,7 +127,7 @@ const handleAdd = () => {
             <!-- Badge En Carrito (solo móvil < lg) -->
             <div 
                 v-if="isInCart"
-                class="lg:hidden absolute top-2 left-2 sm:top-3 sm:left-3 z-10 flex items-center gap-1 bg-emerald-600 text-white px-2 py-1 rounded-full shadow-md border-2 border-white dark:border-secondary-800"
+                class="lg:hidden absolute top-2 left-2 sm:top-3 sm:left-3 z-30 flex items-center gap-1 bg-emerald-600 text-white px-2 py-0.5 sm:py-1 rounded-full shadow-md border-2 border-white dark:border-secondary-800"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
@@ -151,9 +148,9 @@ const handleAdd = () => {
                 <template v-else-if="isConsumerView">
                     <span 
                         :class="hasStock ? 'bg-emerald-600' : 'bg-rose-500'"
-                        class="px-1.5 py-0.5 text-white text-[8px] font-black uppercase rounded-full shadow-sm border-2 border-white dark:border-secondary-800"
+                        class="px-2 py-0.5 text-white text-[8px] sm:text-[9px] font-black uppercase rounded-full shadow-sm border-2 border-white dark:border-secondary-800"
                     >
-                        {{ hasStock ? 'Disponible' : 'No disponible' }}
+                        {{ hasStock ? 'Disponible' : 'Agotado' }}
                     </span>
                 </template>
                 <template v-else>
@@ -168,9 +165,11 @@ const handleAdd = () => {
         </div>
 
         <!-- Info del producto -->
-        <div class="px-2 py-2 sm:px-3 sm:py-3 flex flex-col flex-1 border-t border-zinc-100 dark:border-secondary-700 transition-colors duration-300">
+        <div class="px-2.5 py-2.5 sm:px-3.5 sm:py-3 flex flex-col flex-1 border-t border-zinc-100 dark:border-secondary-700 transition-colors duration-300">
             <div class="flex items-center justify-between mb-1">
-                <span class="text-[9px] sm:text-[10px] font-mono text-zinc-400 dark:text-secondary-500 uppercase truncate">{{ product.code }}</span>
+                <span class="text-[9px] sm:text-[10px] font-mono text-zinc-400 dark:text-secondary-400 uppercase truncate">
+                    {{ product.code }}
+                </span>
             </div>
             <h3 class="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-secondary-50 leading-snug mb-1 line-clamp-2 uppercase">{{ product.name }}</h3>
             

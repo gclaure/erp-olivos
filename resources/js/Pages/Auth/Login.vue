@@ -27,15 +27,15 @@ const submit = () => {
 <template>
     <Head title="Iniciar Sesión" />
 
-    <div class="min-h-screen w-full flex bg-surface dark:bg-secondary-950 font-sans selection:bg-emerald-500 selection:text-white">
+    <div class="min-h-screen w-full flex bg-surface dark:bg-secondary-950 font-sans selection:bg-[#73AC32] selection:text-white">
         <!-- ══ LEFT PANEL: BRAND SHOWCASE (Desktop >= 1024px) ══ -->
         <div class="hidden lg:flex lg:w-1/2 xl:w-[52%] bg-zinc-950 dark:bg-black text-white p-8 xl:p-14 relative overflow-hidden flex-col justify-between border-r border-zinc-800/80">
             <!-- 3D Three.js Interactive Particles & Logistics Grid -->
             <AuthThreeCanvas />
 
             <!-- Background Glow Effects -->
-            <div class="absolute -top-24 -left-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-            <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -top-24 -left-24 w-96 h-96 bg-[#73AC32]/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-[#44773C]/10 rounded-full blur-3xl pointer-events-none"></div>
             <div class="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px]"></div>
 
             <!-- Top: Brand Logo Showcase (Prominent & High-Visibility) -->
@@ -55,8 +55,8 @@ const submit = () => {
 
             <!-- Middle: Hero Statement & Value Propositions -->
             <div class="relative z-10 space-y-6 max-w-lg my-auto py-8">
-                <div class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-black uppercase tracking-wider shadow-sm">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <div class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#73AC32]/15 border border-[#73AC32]/30 text-[#A8C98A] rounded-full text-xs font-black uppercase tracking-wider shadow-sm">
+                    <span class="w-2 h-2 rounded-full bg-[#73AC32] animate-pulse"></span>
                     <span>Control Total de Cadena de Suministro</span>
                 </div>
 
@@ -71,17 +71,17 @@ const submit = () => {
                 <!-- Value Highlights Grid -->
                 <div class="grid grid-cols-3 gap-3 pt-4">
                     <div class="p-3.5 rounded-2xl bg-zinc-900/80 border border-zinc-800/80 backdrop-blur-sm">
-                        <span class="material-symbols-outlined text-emerald-400 text-xl">speed</span>
+                        <span class="material-symbols-outlined text-[#73AC32] text-xl">speed</span>
                         <div class="font-black text-xs text-white mt-1">Despacho Rápido</div>
                         <div class="text-[10px] text-zinc-400 mt-0.5">En tiempo real</div>
                     </div>
                     <div class="p-3.5 rounded-2xl bg-zinc-900/80 border border-zinc-800/80 backdrop-blur-sm">
-                        <span class="material-symbols-outlined text-indigo-400 text-xl">inventory</span>
+                        <span class="material-symbols-outlined text-[#A8C98A] text-xl">inventory</span>
                         <div class="font-black text-xs text-white mt-1">Stock Preciso</div>
                         <div class="text-[10px] text-zinc-400 mt-0.5">Kardex continuo</div>
                     </div>
                     <div class="p-3.5 rounded-2xl bg-zinc-900/80 border border-zinc-800/80 backdrop-blur-sm">
-                        <span class="material-symbols-outlined text-amber-400 text-xl">verified_user</span>
+                        <span class="material-symbols-outlined text-[#73AC32] text-xl">verified_user</span>
                         <div class="font-black text-xs text-white mt-1">Alta Seguridad</div>
                         <div class="text-[10px] text-zinc-400 mt-0.5">Control de roles</div>
                     </div>
@@ -91,7 +91,7 @@ const submit = () => {
             <!-- Bottom: System Status Pill & Version -->
             <div class="relative z-10 flex items-center justify-between border-t border-zinc-800/80 pt-4 text-xs">
                 <div class="flex items-center gap-2 text-zinc-400">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span class="w-2 h-2 rounded-full bg-[#73AC32] animate-ping"></span>
                     <span class="font-bold">Estado: Operativo 100%</span>
                 </div>
             </div>
@@ -101,8 +101,8 @@ const submit = () => {
         <div class="flex-1 flex flex-col justify-center items-center p-5 sm:p-8 lg:p-12 overflow-y-auto relative bg-[#0d120c] text-white">
             <!-- Decorative Ambient Lighting & Grid -->
             <div class="absolute inset-0 opacity-[0.035] pointer-events-none bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px]"></div>
-            <div class="absolute -top-24 -right-24 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-            <div class="absolute -bottom-24 -left-24 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -top-24 -right-24 w-80 h-80 bg-[#73AC32]/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -left-24 w-80 h-80 bg-[#44773C]/10 rounded-full blur-3xl pointer-events-none"></div>
 
             <div class="w-full max-w-md space-y-6 relative z-10">
                 <!-- Mobile / Tablet Brand Header (Visible on < 1024px) -->
@@ -116,8 +116,8 @@ const submit = () => {
                             loading="eager"
                         >
                     </div>
-                    <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-[11px] font-black uppercase tracking-wider shadow-sm">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-[#73AC32]/10 border border-[#73AC32]/30 text-[#A8C98A] rounded-full text-[11px] font-black uppercase tracking-wider shadow-sm">
+                        <span class="w-1.5 h-1.5 rounded-full bg-[#73AC32] animate-pulse"></span>
                         <span>{{ appName }}</span>
                     </div>
                 </div>
@@ -135,8 +135,8 @@ const submit = () => {
                     </div>
 
                     <!-- Flash Message Status -->
-                    <div v-if="flash.status" class="p-3.5 rounded-2xl bg-emerald-950/70 border border-emerald-800/60 text-emerald-300 text-xs font-bold flex items-center gap-2">
-                        <span class="material-symbols-outlined text-base text-emerald-400">check_circle</span>
+                    <div v-if="flash.status" class="p-3.5 rounded-2xl bg-[#44773C]/20 border border-[#73AC32]/40 text-[#A8C98A] text-xs font-bold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base text-[#73AC32]">check_circle</span>
                         <span>{{ flash.status }}</span>
                     </div>
 
@@ -165,7 +165,7 @@ const submit = () => {
                                     required
                                     autofocus
                                     autocomplete="email"
-                                    class="w-full min-h-[46px] pl-10 pr-4 py-2.5 bg-[#090d08] border border-zinc-800/90 rounded-2xl text-sm font-semibold text-white placeholder-zinc-500 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-inner"
+                                    class="w-full min-h-[46px] pl-10 pr-4 py-2.5 bg-[#090d08] border border-zinc-800/90 rounded-2xl text-sm font-semibold text-white placeholder-zinc-500 focus:ring-2 focus:ring-[#73AC32]/30 focus:border-[#73AC32] transition-all shadow-inner"
                                 />
                             </div>
                             <p v-if="form.errors.email" class="text-xs font-bold text-rose-400 flex items-center gap-1 mt-1">
@@ -190,7 +190,7 @@ const submit = () => {
                                     placeholder="••••••••"
                                     required
                                     autocomplete="current-password"
-                                    class="w-full min-h-[46px] pl-10 pr-11 py-2.5 bg-[#090d08] border border-zinc-800/90 rounded-2xl text-sm font-semibold text-white placeholder-zinc-500 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-inner"
+                                    class="w-full min-h-[46px] pl-10 pr-11 py-2.5 bg-[#090d08] border border-zinc-800/90 rounded-2xl text-sm font-semibold text-white placeholder-zinc-500 focus:ring-2 focus:ring-[#73AC32]/30 focus:border-[#73AC32] transition-all shadow-inner"
                                 />
                                 <button
                                     type="button"
@@ -216,7 +216,7 @@ const submit = () => {
                                     id="remember"
                                     v-model="form.remember"
                                     type="checkbox"
-                                    class="w-4 h-4 rounded text-emerald-600 border-zinc-700 bg-[#090d08] focus:ring-emerald-500"
+                                    class="w-4 h-4 rounded text-[#73AC32] border-zinc-700 bg-[#090d08] focus:ring-[#73AC32]"
                                 />
                                 <span class="text-xs font-bold text-zinc-300">
                                     Recordarme
@@ -226,7 +226,7 @@ const submit = () => {
                             <Link 
                                 v-if="page.props.canResetPassword" 
                                 :href="route('password.request')" 
-                                class="text-xs font-black text-emerald-400 hover:text-emerald-300 transition-colors"
+                                class="text-xs font-black text-[#A8C98A] hover:text-[#73AC32] transition-colors"
                             >
                                 ¿Olvidaste tu contraseña?
                             </Link>
@@ -236,7 +236,7 @@ const submit = () => {
                         <button
                             type="submit"
                             :disabled="form.processing"
-                            class="w-full min-h-[48px] mt-3 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                            class="w-full min-h-[48px] mt-3 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#73AC32] to-[#44773C] hover:from-[#5C8C28] hover:to-[#365f30] text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-[#73AC32]/25 active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                         >
                             <svg v-if="form.processing" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -254,12 +254,12 @@ const submit = () => {
                     <div class="pt-4 border-t border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
                         <p v-if="page.props.canRegister" class="text-zinc-400">
                             ¿No tienes cuenta?
-                            <Link :href="route('register')" class="font-black text-emerald-400 hover:underline ml-1">
+                            <Link :href="route('register')" class="font-black text-[#A8C98A] hover:text-[#73AC32] hover:underline ml-1">
                                 Regístrate
                             </Link>
                         </p>
                         <div class="text-[11px] font-bold text-zinc-500 flex items-center gap-1.5 ml-auto">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-[#73AC32] animate-pulse"></span>
                             <span>Sistema Seguro</span>
                         </div>
                     </div>
@@ -268,4 +268,3 @@ const submit = () => {
         </div>
     </div>
 </template>
-

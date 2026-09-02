@@ -15,7 +15,7 @@ const props = defineProps({
     cart: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['update:searchQuery', 'update:typeFilter', 'page-change', 'add-to-cart', 'change-warehouse', 'update-quantity']);
+const emit = defineEmits(['update:searchQuery', 'update:typeFilter', 'page-change', 'add-to-cart', 'change-warehouse', 'update-quantity', 'show-detail']);
 
 const showWarehouseDropdown = ref(false);
 
@@ -170,6 +170,7 @@ const setTypeFilter = (type) => {
                     :operation-type="operationType"
                     @add="(product, qty) => $emit('add-to-cart', product, qty)"
                     @update-quantity="(productId, qty, warehouseId) => $emit('update-quantity', productId, qty, warehouseId)"
+                    @show-detail="(product) => $emit('show-detail', product)"
                 />
             </div>
 

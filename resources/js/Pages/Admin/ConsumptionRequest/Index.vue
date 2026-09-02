@@ -300,6 +300,81 @@ onUnmounted(() => {
     window.removeEventListener('focus', limpiarBadges);
 });
 
+const getDetailedStatusInfo = (req) => {
+    if (!req) return { label: 'Desconocido', sublabel: '', containerClass: '', sublabelClass: '', dotClass: '' };
+
+    const s = req.status;
+
+    if (s === 'cancelado') {
+        return {
+            label: 'Cancelado',
+            sublabel: 'Solicitud Anulada',
+            containerClass: 'bg-rose-50/90 border-rose-200 text-rose-900 dark:bg-rose-950/40 dark:border-rose-700/60 dark:text-rose-200 shadow-xs',
+            sublabelClass: 'text-rose-700 dark:text-rose-300/90',
+            dotClass: 'bg-rose-500'
+        };
+    }
+
+    if (s === 'observado') {
+        return {
+            label: 'Observado',
+            sublabel: 'Requiere Corrección',
+            containerClass: 'bg-orange-50/90 border-orange-200 text-orange-900 dark:bg-orange-950/40 dark:border-orange-700/60 dark:text-orange-200 shadow-xs',
+            sublabelClass: 'text-orange-700 dark:text-orange-300/90',
+            dotClass: 'bg-orange-500'
+        };
+    }
+
+    if (s === 'entregado') {
+        return {
+            label: 'Entregado',
+            sublabel: 'Recepción Completada',
+            containerClass: 'bg-emerald-50/90 border-emerald-200 text-emerald-900 dark:bg-emerald-950/40 dark:border-emerald-700/60 dark:text-emerald-200 shadow-xs',
+            sublabelClass: 'text-emerald-700 dark:text-emerald-300/90',
+            dotClass: 'bg-emerald-500'
+        };
+    }
+
+    if (s === 'despachado') {
+        return {
+            label: 'Despachado',
+            sublabel: 'Por Recibir (Solicitante)',
+            containerClass: 'bg-fuchsia-50/90 border-fuchsia-200 text-fuchsia-900 dark:bg-fuchsia-950/40 dark:border-fuchsia-700/60 dark:text-fuchsia-200 shadow-xs',
+            sublabelClass: 'text-fuchsia-700 dark:text-fuchsia-300/90',
+            dotClass: 'bg-fuchsia-500'
+        };
+    }
+
+    if (s === 'despachado_parcial' || s === 'parcial') {
+        return {
+            label: 'Despacho Parcial',
+            sublabel: req.has_missing_stock ? 'Falta Stock (Compra)' : 'Entrega Parcial',
+            containerClass: 'bg-indigo-50/90 border-indigo-200 text-indigo-900 dark:bg-indigo-950/40 dark:border-indigo-700/60 dark:text-indigo-200 shadow-xs',
+            sublabelClass: 'text-indigo-700 dark:text-indigo-300/90',
+            dotClass: 'bg-indigo-500'
+        };
+    }
+
+    if (s === 'aprobado' || req.approved_at) {
+        return {
+            label: 'Aprobado',
+            sublabel: 'Listo en Almacén',
+            containerClass: 'bg-blue-50/90 border-blue-200 text-blue-900 dark:bg-blue-950/40 dark:border-blue-700/60 dark:text-blue-200 shadow-xs',
+            sublabelClass: 'text-blue-700 dark:text-blue-300/90',
+            dotClass: 'bg-blue-500'
+        };
+    }
+
+    // Default 'pendiente' (en espera de aprobación administrativa)
+    return {
+        label: 'Pendiente',
+        sublabel: 'Por Aprobar (Admin)',
+        containerClass: 'bg-amber-50/90 border-amber-200 text-amber-900 dark:bg-amber-950/40 dark:border-amber-700/60 dark:text-amber-200 shadow-xs',
+        sublabelClass: 'text-amber-800 dark:text-amber-300/90',
+        dotClass: 'bg-amber-500 animate-pulse'
+    };
+};
+
 const getStatusBadgeClass = (statusVal) => {
     switch (statusVal) {
         case 'pendiente':
@@ -322,6 +397,8 @@ const getStatusBadgeClass = (statusVal) => {
 const getStatusLabel = (statusVal) => {
     switch (statusVal) {
         case 'pendiente': return 'Pendiente';
+        case 'aprobado': return 'Aprobado';
+        case 'observado': return 'Observado';
         case 'entregado': return 'Entregado';
         case 'parcial': return 'Despacho Parcial';
         case 'despachado': return 'Despachado';
@@ -462,10 +539,12 @@ const handleConsolidatePurchases = () => {
                         class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-300 focus:border-blue-500 focus:ring-0 transition-all uppercase"
                     >
                         <option value="">TODOS LOS ESTADOS</option>
-                        <option value="pendiente">PENDIENTE</option>
-                        <option value="entregado">ENTREGADO</option>
+                        <option value="pendiente">PENDIENTE (POR APROBAR)</option>
+                        <option value="aprobado">APROBADO (EN ALMACÉN)</option>
+                        <option value="despachado">DESPACHADO (POR RECIBIR)</option>
                         <option value="parcial">DESPACHO PARCIAL</option>
-                        <option value="compras_generado">COMPRA SOLICITADA</option>
+                        <option value="entregado">ENTREGADO</option>
+                        <option value="observado">OBSERVADO</option>
                         <option value="cancelado">CANCELADO</option>
                     </select>
                 </div>
@@ -608,28 +687,21 @@ const handleConsolidatePurchases = () => {
 
                             <!-- Estado -->
                             <td class="px-6 py-4 whitespace-nowrap text-center">
-                                <div class="flex items-center justify-center gap-1.5 flex-col">
-                                    <span 
-                                        v-if="req.status === 'entregado'"
-                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest bg-emerald-600 text-white shadow-md shadow-emerald-500/20 dark:bg-emerald-500"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4.12-5.671Z" clip-rule="evenodd" />
-                                        </svg>
-                                        ENTREGADO
+                                <div class="inline-flex flex-col items-center justify-center px-3 py-1.5 rounded-xl border transition-all text-center min-w-[135px]" :class="getDetailedStatusInfo(req).containerClass">
+                                    <div class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider">
+                                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getDetailedStatusInfo(req).dotClass"></span>
+                                        <span>{{ getDetailedStatusInfo(req).label }}</span>
+                                    </div>
+                                    <span class="text-[10px] font-extrabold tracking-tight mt-0.5" :class="getDetailedStatusInfo(req).sublabelClass">
+                                        {{ getDetailedStatusInfo(req).sublabel }}
                                     </span>
+                                    <!-- Alerta Falta de Stock si aplica -->
                                     <span 
-                                        v-else
-                                        :class="['inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider', getStatusBadgeClass(req.status)]"
-                                    >
-                                        {{ getStatusLabel(req.status) }}
-                                    </span>
-                                    <span 
-                                        v-if="(req.status === 'pendiente' || req.status === 'parcial') && req.has_missing_stock"
-                                        class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-full ring-1 ring-amber-500/30"
+                                        v-if="(req.status === 'pendiente' || req.status === 'parcial' || req.status === 'aprobado' || req.status === 'despachado_parcial') && req.has_missing_stock"
+                                        class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 bg-amber-200/90 dark:bg-amber-500/30 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-600/50 shadow-xs mt-1"
                                         title="Falta stock en almacén para cumplir la solicitud"
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-2.5 h-2.5">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                         </svg>
                                         Falta Stock
@@ -695,18 +767,23 @@ const handleConsolidatePurchases = () => {
                         </div>
                         
                         <!-- Estado -->
-                        <div class="flex items-center gap-1.5">
-                            <span 
-                                v-if="req.status === 'entregado'"
-                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-emerald-600 text-white shadow-md shadow-emerald-500/20 dark:bg-emerald-500"
-                            >
-                                COMPLETADA
+                        <div class="inline-flex flex-col items-end justify-center px-2.5 py-1 rounded-xl border transition-all text-right" :class="getDetailedStatusInfo(req).containerClass">
+                            <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider">
+                                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="getDetailedStatusInfo(req).dotClass"></span>
+                                <span>{{ getDetailedStatusInfo(req).label }}</span>
+                            </div>
+                            <span class="text-[9px] font-extrabold tracking-tight mt-0.5" :class="getDetailedStatusInfo(req).sublabelClass">
+                                {{ getDetailedStatusInfo(req).sublabel }}
                             </span>
                             <span 
-                                v-else
-                                :class="['inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider', getStatusBadgeClass(req.status)]"
+                                v-if="(req.status === 'pendiente' || req.status === 'parcial' || req.status === 'aprobado' || req.status === 'despachado_parcial') && req.has_missing_stock"
+                                class="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 bg-amber-200/90 dark:bg-amber-500/30 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-600/50 shadow-xs mt-1"
+                                title="Falta stock en almacén para cumplir la solicitud"
                             >
-                                {{ getStatusLabel(req.status) }}
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-2.5 h-2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Falta Stock
                             </span>
                         </div>
                     </div>

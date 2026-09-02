@@ -96,6 +96,8 @@ Route::group(['prefix' => 'consumption-requests', 'as' => 'consumption-requests.
     Route::get('/create', [ConsumptionRequestController::class, 'create'])->name('create');
     Route::post('/', [ConsumptionRequestController::class, 'store'])->name('store');
     Route::get('/{consumption_request}/print', [ConsumptionRequestController::class, 'print'])->name('print');
+    Route::get('/{consumption_request}/edit', [ConsumptionRequestController::class, 'edit'])->name('edit');
+    Route::put('/{consumption_request}', [ConsumptionRequestController::class, 'update'])->name('update');
     Route::get('/{consumption_request}', [ConsumptionRequestController::class, 'show'])->name('show');
     Route::post('/{consumption_request}/dispatch', [ConsumptionRequestController::class, 'dispatchRequest'])->name('dispatch');
     Route::post('/{consumption_request}/receive', [ConsumptionRequestController::class, 'receive'])->name('receive');

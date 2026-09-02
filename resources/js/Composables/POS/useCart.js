@@ -118,6 +118,14 @@ export function useCart(initialFixedDiscount = false) {
         globalDiscount.value = quotation.global_discount;
     };
 
+    const loadItems = (rawItems) => {
+        if (!Array.isArray(rawItems)) return;
+        items.value = rawItems.map(item => ({
+            ...item,
+            glosa: item.glosa || ''
+        }));
+    };
+
     const clearCart = () => {
         items.value = [];
         globalDiscount.value = 0;
@@ -141,6 +149,7 @@ export function useCart(initialFixedDiscount = false) {
         updateQuantity,
         updateDiscount,
         clearCart,
-        loadQuotation
+        loadQuotation,
+        loadItems
     };
 }
