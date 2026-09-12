@@ -152,7 +152,7 @@ class ConsumptionRequestController extends Controller
 
             if (empty($requestedBy)) {
                 return redirect()->back()->withErrors([
-                    'error' => 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Panadería, Eventos) para registrar consumos.'
+                    'error' => 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Panadería, Eventos, Producción, Despacho) para registrar consumos.'
                 ]);
             }
 

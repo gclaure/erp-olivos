@@ -178,7 +178,7 @@ const submitConsumption = () => {
         Swal.fire({
             icon: 'error',
             title: 'Perfil Incompleto',
-            text: 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Eventos) para realizar solicitudes.',
+            text: 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Panadería, Eventos, Producción, Despacho) para realizar solicitudes.',
             customClass: {
                 confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded-lg font-bold'
             }

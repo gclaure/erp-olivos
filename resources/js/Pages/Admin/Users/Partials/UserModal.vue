@@ -39,7 +39,9 @@ const areas = [
     { label: 'Cocina', value: 'Cocina' },
     { label: 'Pastelería', value: 'Pastelería' },
     { label: 'Panadería', value: 'Panadería' },
-    { label: 'Eventos', value: 'Eventos' }
+    { label: 'Eventos', value: 'Eventos' },
+    { label: 'Producción', value: 'Producción' },
+    { label: 'Despacho', value: 'Despacho' }
 ];
 
 const showPassword = ref(false);

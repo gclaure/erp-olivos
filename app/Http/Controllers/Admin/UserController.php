@@ -68,7 +68,7 @@ class UserController extends Controller
             'role' => 'required|string',
             'is_super_admin' => 'boolean',
             'branch_id' => 'required_unless:is_super_admin,true,1|nullable|exists:branches,id',
-            'area' => 'required_if:role,Consumidor,CONSUMIDOR,consumidor|nullable|string|in:Cocina,Pastelería,Panadería,Panaderia,Eventos|max:150',
+            'area' => 'required_if:role,Consumidor,CONSUMIDOR,consumidor|nullable|string|in:Cocina,Pastelería,Panadería,Panaderia,Eventos,Producción,Produccion,Despacho|max:150',
         ], [
             'role.required' => 'El rol administrativo es obligatorio.',
             'branch_id.required' => 'La sucursal es obligatoria.',
@@ -112,7 +112,7 @@ class UserController extends Controller
             'role' => 'required|string',
             'is_super_admin' => 'boolean',
             'branch_id' => 'required_unless:is_super_admin,true,1|nullable|exists:branches,id',
-            'area' => 'required_if:role,Consumidor,CONSUMIDOR,consumidor|nullable|string|in:Cocina,Pastelería,Panadería,Panaderia,Eventos|max:150',
+            'area' => 'required_if:role,Consumidor,CONSUMIDOR,consumidor|nullable|string|in:Cocina,Pastelería,Panadería,Panaderia,Eventos,Producción,Produccion,Despacho|max:150',
         ], [
             'role.required' => 'El rol administrativo es obligatorio.',
             'branch_id.required' => 'La sucursal es obligatoria.',

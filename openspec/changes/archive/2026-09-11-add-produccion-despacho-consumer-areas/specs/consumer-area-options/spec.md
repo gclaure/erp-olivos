@@ -1,23 +1,17 @@
-# Consumer Area Options
+## MODIFIED Requirements
 
-Especificación de áreas y departamentos operativos disponibles para usuarios con rol Consumidor y solicitudes de consumo interno.
-
-## Requirement: Áreas operativas disponibles para Consumidores
+### Requirement: Áreas operativas disponibles para Consumidores
 El sistema SHALL permitir la selección y asignación de áreas operativas a los usuarios que tengan el rol "Consumidor". Las áreas válidas del sistema MUST incluir: `Cocina`, `Pastelería`, `Panadería`, `Eventos`, `Producción` y `Despacho`.
 
-### Scenario: Asignar área Panadería a un nuevo usuario Consumidor
-- **WHEN** un Administrador crea un usuario con rol Consumidor y selecciona "Panadería" como área
-- **THEN** el sistema guarda el usuario con `area = 'Panadería'` y `role = 'Consumidor'`
-
-### Scenario: Asignar área Producción a un nuevo usuario Consumidor
+#### Scenario: Asignar área Producción a un nuevo usuario Consumidor
 - **WHEN** un Administrador crea un usuario con rol Consumidor y selecciona "Producción" como área
 - **THEN** el sistema guarda el usuario con `area = 'Producción'` y `role = 'Consumidor'`
 
-### Scenario: Asignar área Despacho a un nuevo usuario Consumidor
+#### Scenario: Asignar área Despacho a un nuevo usuario Consumidor
 - **WHEN** un Administrador crea o edita un usuario con rol Consumidor y selecciona "Despacho" como área
 - **THEN** el sistema guarda el usuario con `area = 'Despacho'` y `role = 'Consumidor'`
 
-### Scenario: Consumidor registra consumo con su área operativa
-- **WHEN** un usuario con área `Panadería`, `Producción` o `Despacho` envía una solicitud de consumo
+#### Scenario: Consumidor de Producción o Despacho registra consumo
+- **WHEN** un usuario con área `Producción` o `Despacho` envía una solicitud de consumo interno desde el POS
 - **THEN** la solicitud se crea con `requested_by` asignado al área correspondiente
 - **AND** la validación backend acepta la solicitud sin errores de área inválida
