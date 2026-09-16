@@ -147,12 +147,21 @@ class ConsumptionRequestController extends Controller
         try {
             $data = $request->validated();
 
-            // Auto-asignar el área operativa del usuario autenticado
-            $requestedBy = $data['requested_by'] ?? ($user ? $user->area : null);
+            $isAdmin = $user && ($user->is_super_admin || $user->hasRole(['Admin', 'Administrador', 'admin', 'administrador', 'Super Admin']));
+
+            // Si es administrador, toma el área enviada en la solicitud o su área de usuario
+            // Si es consumidor/estándar, se toma estrictamente el área de su perfil asignado
+            $requestedBy = $isAdmin
+                ? ($data['requested_by'] ?? $user?->area)
+                : ($user?->area ?? $data['requested_by'] ?? null);
 
             if (empty($requestedBy)) {
+                $errorMessage = $isAdmin
+                    ? 'Debe seleccionar un área operativa (Cocina, Pastelería, Panadería, Eventos, Producción, Despacho) para registrar la solicitud.'
+                    : 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Panadería, Eventos, Producción, Despacho) para registrar consumos.';
+
                 return redirect()->back()->withErrors([
-                    'error' => 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Panadería, Eventos, Producción, Despacho) para registrar consumos.'
+                    'error' => $errorMessage
                 ]);
             }
 
@@ -339,6 +348,11 @@ class ConsumptionRequestController extends Controller
         try {
             $data = $request->validated();
             $items = $data['cart'] ?? [];
+
+            $isAdmin = $user && ($user->is_super_admin || $user->hasRole(['Admin', 'Administrador', 'admin', 'administrador', 'Super Admin']));
+            if (!$isAdmin && !empty($user?->area)) {
+                $data['requested_by'] = $user->area;
+            }
 
             $updated = $this->consumptionRequestService->updateRequest($consumptionRequest, $data, $items);
 
@@ -849,8 +863,14 @@ class ConsumptionRequestController extends Controller
     /**
      * Generate and stream the consumption request PDF.
      */
-    public function print(ConsumptionRequest $consumptionRequest): \Illuminate\Http\Response
+    public function print(\Illuminate\Http\Request $request, ConsumptionRequest $consumptionRequest): \Illuminate\Http\Response
     {
+        $company = \App\Facades\CompanyFacade::getCompany();
+        $format = $request->get('format', $company?->receipt_type ?? 'media');
+        $view = $format === 'rollo' 
+            ? 'admin.consumption-requests.receipt-roll' 
+            : 'admin.consumption-requests.receipt';
+
         $consumptionRequest->load([
             'warehouse.branch.company',
             'user',
@@ -862,11 +882,20 @@ class ConsumptionRequestController extends Controller
             'details.product.unitOfMeasure',
         ]);
 
-        $pdf = Pdf::loadView('admin.consumption-requests.receipt', [
+        $pdf = Pdf::loadView($view, [
             'request' => $consumptionRequest,
         ]);
 
-        $pdf->setPaper('letter', 'portrait');
+        if ($format === 'rollo') {
+            $baseHeight = 460;
+            $rowHeight = 50;
+            $itemsCount = max(1, $consumptionRequest->details->count());
+            $dynamicHeight = $baseHeight + ($itemsCount * $rowHeight);
+            
+            $pdf->setPaper([0, 0, 226, $dynamicHeight], 'portrait');
+        } else {
+            $pdf->setPaper('letter', 'portrait');
+        }
 
         return $pdf->stream("Solicitud-Consumo-{$consumptionRequest->formatted_number}.pdf");
     }

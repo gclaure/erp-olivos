@@ -106,10 +106,10 @@ class Company extends Model
     public function getLogoUrlAttribute(): string
     {
         if ($this->logo_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->logo_path)) {
-            return \Illuminate\Support\Facades\Storage::disk('public')->url($this->logo_path);
+            return asset('storage/' . $this->logo_path);
         }
 
-        return asset('img/logo-inventory.png');
+        return asset('img/logo-dark.png');
     }
 
     // NO SE DEBE AGREGAR NINGUN VALOR AL SLUG AUTOMATICAMENTE

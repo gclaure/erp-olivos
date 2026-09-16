@@ -17,7 +17,8 @@ class QuotationPrintController extends Controller
      */
     public function __invoke(Request $request, Quotation $quotation): Response
     {
-        $format = $request->get('format', 'media');
+        $company = \App\Facades\CompanyFacade::getCompany();
+        $format = $request->get('format', $company?->receipt_type ?? 'media');
         $view = $format === 'rollo' ? 'admin.quotations.quotation-roll' : 'admin.quotations.quotation';
         
         $quotation->load(['client', 'user', 'branch.company', 'details.product.unitOfMeasure']);

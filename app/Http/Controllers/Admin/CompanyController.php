@@ -33,9 +33,7 @@ class CompanyController extends Controller
                 'email' => $company->email ?? '',
                 'logo_url' => $company->logo_url,
                 'show_name' => (bool) $company->show_name,
-                'inventory_method' => $company->inventory_method->value,
-                'has_inventory_movements' => (bool) $company->has_inventory_movements,
-                'inventories_closed_until' => $company->inventories_closed_until?->format('Y-m-d'),
+                'receipt_type' => $company->receipt_type ?? 'media',
             ] : null,
         ]);
     }

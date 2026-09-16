@@ -73,6 +73,7 @@ class ConsumptionRequestService
             $consumptionRequest->update([
                 'notes' => $data['notes'] ?? $consumptionRequest->notes,
                 'date' => $data['date'] ?? $consumptionRequest->date,
+                'requested_by' => $data['requested_by'] ?? $consumptionRequest->requested_by,
             ]);
 
             $newItemProductIds = collect($items)->pluck('id')->toArray();

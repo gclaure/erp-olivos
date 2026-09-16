@@ -77,7 +77,7 @@ class HandleInertiaRequests extends Middleware
                     ? asset('storage/' . \App\Facades\CompanyFacade::getCompany()->logo_path) 
                     : null,
                 'receipt_type' => \App\Facades\CompanyFacade::getCompany()?->receipt_type ?? 'media',
-                'show_name' => true,
+                'show_name' => (bool)(\App\Facades\CompanyFacade::getCompany()?->show_name ?? true),
                 'plan' => \App\Facades\CompanyFacade::getCompany()?->currentPlan() ? [
                     'name' => \App\Facades\CompanyFacade::getCompany()->currentPlan()->name,
                     'slug' => \App\Facades\CompanyFacade::getCompany()->currentPlan()->slug,

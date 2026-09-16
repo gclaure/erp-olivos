@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
+use App\Facades\CompanyFacade;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateCompanyRequest extends FormRequest
 {
@@ -27,10 +29,10 @@ class UpdateCompanyRequest extends FormRequest
             'business_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'email', 'max:255'],
-            'logo' => ['nullable', 'image', 'max:2048'],
             'show_name' => ['required', 'boolean'],
-            'inventory_method' => ['required', 'string', \Illuminate\Validation\Rule::in(['PROMEDIO_PONDERADO', 'PEPS'])],
-            'inventories_closed_until' => ['nullable', 'date'],
+            'receipt_type' => ['required', 'string', Rule::in(['media', 'rollo'])],
+            'inventory_method' => ['sometimes', 'nullable', 'string', Rule::in(['PROMEDIO_PONDERADO', 'PEPS'])],
+            'inventories_closed_until' => ['sometimes', 'nullable', 'date'],
         ];
     }
 
@@ -40,10 +42,18 @@ class UpdateCompanyRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
-            $company = app('tenant')->resolve();
-            
-            // Bloqueo total del método si ya hay movimientos
-            if ($this->has('inventory_method') && $this->inventory_method !== $company->inventory_method->value) {
+            $company = CompanyFacade::getCompany();
+
+            if (!$company) {
+                return;
+            }
+
+            $currentMethod = is_object($company->inventory_method) && isset($company->inventory_method->value)
+                ? $company->inventory_method->value
+                : (string) $company->inventory_method;
+
+            // Bloqueo total del método si ya hay movimientos y se envía un cambio explícito
+            if ($this->filled('inventory_method') && $this->input('inventory_method') !== $currentMethod) {
                 if ($company->has_inventory_movements) {
                     $validator->errors()->add('inventory_method', 'No se puede cambiar el método de inventario una vez que ya existen movimientos registrados.');
                 }

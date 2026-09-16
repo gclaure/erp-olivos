@@ -161,8 +161,16 @@ Route::get('kardex', [KardexController::class, 'index'])->name('kardex.index');
 Route::get('kardex/export-pdf', [\App\Http\Controllers\Admin\KardexExportController::class, 'downloadPdf'])->name('kardex.export-pdf');
 Route::get('kardex/export-excel', [\App\Http\Controllers\Admin\KardexExportController::class, 'downloadExcel'])->name('kardex.export-excel');
 
-// BI Dashboard
-Route::get('reports', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('reports.index');
+// Reportes Operativos
+Route::group(['prefix' => 'reports', 'as' => 'reports.'], function () {
+    Route::get('/', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('index');
+    Route::get('/consumptions/pdf', [\App\Http\Controllers\Admin\ReportController::class, 'downloadConsumptionsPdf'])->name('consumptions.pdf');
+    Route::get('/consumptions/excel', [\App\Http\Controllers\Admin\ReportController::class, 'downloadConsumptionsExcel'])->name('consumptions.excel');
+    Route::get('/movements/pdf', [\App\Http\Controllers\Admin\ReportController::class, 'downloadMovementsPdf'])->name('movements.pdf');
+    Route::get('/movements/excel', [\App\Http\Controllers\Admin\ReportController::class, 'downloadMovementsExcel'])->name('movements.excel');
+    Route::get('/stock/pdf', [\App\Http\Controllers\Admin\ReportController::class, 'downloadStockPdf'])->name('stock.pdf');
+    Route::get('/stock/excel', [\App\Http\Controllers\Admin\ReportController::class, 'downloadStockExcel'])->name('stock.excel');
+});
 Route::get('api/products', \App\Http\Controllers\Api\ProductSearchController::class)->name('api.products.index');
 
 // Selects asíncronos

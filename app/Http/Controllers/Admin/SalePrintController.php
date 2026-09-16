@@ -17,7 +17,8 @@ class SalePrintController extends Controller
      */
     public function __invoke(Request $request, Sale $sale): Response
     {
-        $format = $request->get('format', 'media');
+        $company = \App\Facades\CompanyFacade::getCompany();
+        $format = $request->get('format', $company?->receipt_type ?? 'media');
         $view = $format === 'rollo' ? 'admin.sales.receipt-roll' : 'admin.sales.receipt';
         
         $sale->load(['client', 'user', 'warehouse.branch.company', 'details.product.unitOfMeasure']);

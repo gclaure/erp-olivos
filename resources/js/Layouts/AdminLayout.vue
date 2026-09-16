@@ -130,13 +130,18 @@ watch(() => page.props.flash, (flash) => {
         ]">
             
             <!-- Logo Section -->
-            <div class="py-6 flex flex-col items-center justify-center border-b border-zinc-800 flex-shrink-0 bg-zinc-950/20 overflow-hidden"
-                 :class="sidebarMini ? 'px-2' : 'px-6'">
-                <Link :href="route('admin.dashboard')" class="flex flex-col items-center justify-center w-full gap-4 group">
-                    <div class="w-full h-16 flex items-center justify-center px-4">
+            <div class="py-5 flex flex-col items-center justify-center border-b border-zinc-800 flex-shrink-0 bg-zinc-950/20 overflow-hidden relative"
+                 :class="sidebarMini ? 'px-2' : 'px-4'">
+                <Link :href="route('admin.dashboard')" class="flex flex-col items-center justify-center w-full gap-2 group text-center">
+                    <div class="w-full h-14 flex items-center justify-center px-2">
                         <img src="/img/logo-dark.png" 
                              class="max-w-full max-h-full object-contain animate-heartbeat" 
-                             :alt="company?.name">
+                             :alt="company?.name || 'Logo'">
+                    </div>
+                    <div v-if="(company?.show_name ?? true) && !sidebarMini" class="flex flex-col items-center px-2 w-full transition-all duration-300">
+                        <span class="text-xs font-black text-zinc-100 tracking-wider uppercase truncate max-w-[190px] drop-shadow-sm">
+                            {{ company?.name || 'LOS OLIVOS' }}
+                        </span>
                     </div>
                 </Link>
                 <button v-if="mobileOpen" @click="mobileOpen = false" class="absolute top-4 right-4 p-1 text-zinc-400 hover:text-white lg:hidden">

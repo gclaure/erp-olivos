@@ -181,8 +181,8 @@ class SidebarService
                 ]
             ],
             [
-                'label' => 'Reportes BI',
-                'icon' => 'chart-pie',
+                'label' => 'Reportes',
+                'icon' => 'document-text',
                 'route' => 'admin.reports.index',
                 'permission' => 'view-reports',
             ],

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import Swal from 'sweetalert2';
 
@@ -39,6 +39,46 @@ const emit = defineEmits([
 
 const page = usePage();
 const currentUser = computed(() => page.props.auth?.user);
+
+const isAdmin = computed(() => {
+    if (!currentUser.value) return false;
+    if (currentUser.value.is_super_admin) return true;
+    const roles = currentUser.value.roles || [];
+    return roles.some(r => ['Admin', 'Administrador', 'admin', 'administrador', 'Super Admin'].includes(r));
+});
+
+const operationalAreas = [
+    { label: 'Cocina', value: 'Cocina', icon: 'skillet' },
+    { label: 'Pastelería', value: 'Pastelería', icon: 'cake' },
+    { label: 'Panadería', value: 'Panadería', icon: 'bakery_dining' },
+    { label: 'Eventos', value: 'Eventos', icon: 'celebration' },
+    { label: 'Producción', value: 'Producción', icon: 'precision_manufacturing' },
+    { label: 'Despacho', value: 'Despacho', icon: 'local_shipping' }
+];
+
+const selectedArea = ref(props.editingRequest?.requested_by || currentUser.value?.area || '');
+const isOpenAreaDropdown = ref(false);
+const areaDropdownRef = ref(null);
+
+watch(() => props.editingRequest, (newVal) => {
+    if (newVal?.requested_by) {
+        selectedArea.value = newVal.requested_by;
+    }
+}, { immediate: true });
+
+const handleClickOutsideArea = (event) => {
+    if (areaDropdownRef.value && !areaDropdownRef.value.contains(event.target)) {
+        isOpenAreaDropdown.value = false;
+    }
+};
+
+onMounted(() => {
+    document.addEventListener('click', handleClickOutsideArea);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutsideArea);
+});
 
 const paymentMethod = ref('efectivo');
 
@@ -173,18 +213,36 @@ const hasStockErrors = computed(() => {
 });
 
 const submitConsumption = () => {
-    const area = (currentUser.value?.area || '').trim();
-    if (!area) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Perfil Incompleto',
-            text: 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Panadería, Eventos, Producción, Despacho) para realizar solicitudes.',
-            customClass: {
-                confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded-lg font-bold'
-            }
-        });
-        return;
+    let areaToSubmit = '';
+
+    if (isAdmin.value) {
+        areaToSubmit = (selectedArea.value || '').trim();
+        if (!areaToSubmit) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Área Requerida',
+                text: 'Por favor seleccione el área operativa (Cocina, Pastelería, Panadería, Eventos, Producción, Despacho) a la cual se destinará esta solicitud.',
+                customClass: {
+                    confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded-lg font-bold'
+                }
+            });
+            return;
+        }
+    } else {
+        areaToSubmit = (currentUser.value?.area || '').trim();
+        if (!areaToSubmit) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Perfil Incompleto',
+                text: 'Tu usuario no tiene un área operativa asignada (Cocina, Pastelería, Panadería, Eventos, Producción, Despacho) para realizar solicitudes.',
+                customClass: {
+                    confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded-lg font-bold'
+                }
+            });
+            return;
+        }
     }
+
     if (props.cart.length === 0) {
         Swal.fire({
             icon: 'error',
@@ -202,7 +260,7 @@ const submitConsumption = () => {
     }
 
     emit('submit-consumption', {
-        requested_by: area,
+        requested_by: areaToSubmit,
         notes: notes.value
     });
 };
@@ -508,7 +566,68 @@ const formatDate = (dateStr) => {
         <div class="flex-shrink-0 bg-white dark:bg-secondary-800 border-t border-zinc-100 dark:border-secondary-700 transition-colors duration-300">
             <!-- Si es consumo interno -->
             <div v-if="operationType === 'consumption'" class="px-5 py-4 space-y-4">
-                <div v-if="currentUser?.area">
+                <!-- Selector de Área para Administradores -->
+                <div v-if="isAdmin" ref="areaDropdownRef" class="relative">
+                    <label class="block text-[11px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider mb-1.5">
+                        Área Solicitante (Destino)
+                    </label>
+                    <div class="relative">
+                        <button 
+                            type="button"
+                            @click="isOpenAreaDropdown = !isOpenAreaDropdown"
+                            class="w-full flex items-center justify-between p-3 rounded-xl border bg-zinc-50 dark:bg-secondary-900 text-left transition-all duration-200"
+                            :class="[
+                                isOpenAreaDropdown ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-zinc-200 dark:border-secondary-700 hover:border-zinc-300 dark:hover:border-secondary-600',
+                                !selectedArea ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50/20' : ''
+                            ]"
+                        >
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <span class="material-symbols-outlined text-indigo-500 text-[20px]">corporate_fare</span>
+                                <div class="flex flex-col min-w-0">
+                                    <span v-if="selectedArea" class="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase truncate">
+                                        {{ selectedArea }}
+                                    </span>
+                                    <span v-else class="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase truncate">
+                                        Seleccionar Área Operativa...
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1.5 flex-shrink-0">
+                                <span class="text-[9px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-full uppercase leading-none border border-amber-200/50 dark:border-amber-800/50">Admin</span>
+                                <span class="material-symbols-outlined text-zinc-400 text-lg transition-transform duration-200" :class="{ 'rotate-180': isOpenAreaDropdown }">
+                                    expand_more
+                                </span>
+                            </div>
+                        </button>
+
+                        <!-- Dropdown Menu -->
+                        <div 
+                            v-if="isOpenAreaDropdown" 
+                            class="absolute bottom-full mb-2 left-0 right-0 z-50 bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-2xl shadow-xl overflow-hidden p-1.5 max-h-56 overflow-y-auto"
+                        >
+                            <div class="px-2 py-1 text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider border-b border-zinc-100 dark:border-secondary-700/50 mb-1">
+                                Seleccione Área
+                            </div>
+                            <button
+                                v-for="area in operationalAreas"
+                                :key="area.value"
+                                type="button"
+                                @click="selectedArea = area.value; isOpenAreaDropdown = false"
+                                class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs font-bold transition-colors mb-0.5"
+                                :class="selectedArea === area.value ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400' : 'text-zinc-700 dark:text-secondary-300 hover:bg-zinc-100 dark:hover:bg-secondary-700/60'"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-base text-zinc-400 dark:text-zinc-500">{{ area.icon }}</span>
+                                    <span>{{ area.label }}</span>
+                                </div>
+                                <span v-if="selectedArea === area.value" class="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-sm font-bold">check</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Área fija para Consumidor Estándar -->
+                <div v-else-if="currentUser?.area">
                     <div class="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl p-3.5 flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span class="material-symbols-outlined text-indigo-500 text-[20px]">corporate_fare</span>
@@ -518,6 +637,14 @@ const formatDate = (dateStr) => {
                             </div>
                         </div>
                         <span class="text-[9px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 rounded-full uppercase leading-none">Perfil</span>
+                    </div>
+                </div>
+
+                <!-- Alerta informativa si usuario no-admin no tiene área -->
+                <div v-else class="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 rounded-xl p-3 flex items-start gap-2.5">
+                    <span class="material-symbols-outlined text-amber-500 text-[18px] flex-shrink-0 mt-0.5">warning</span>
+                    <div class="text-[11px] text-amber-800 dark:text-amber-300 font-semibold leading-tight">
+                        Tu usuario no tiene un área operativa asignada en su perfil. Contacta a un administrador.
                     </div>
                 </div>
 

@@ -39,25 +39,30 @@
             margin-bottom: 12px;
         }
         .header-table td {
-            vertical-align: top;
+            vertical-align: middle;
             padding: 0;
             border: none;
         }
         .branding-left {
-            width: 58%;
+            width: 36%;
+            vertical-align: top;
+        }
+        .branding-center {
+            width: 28%;
+            text-align: center;
+            vertical-align: middle;
+            padding: 0 8px;
         }
         .doc-info-right {
-            width: 42%;
+            width: 36%;
             text-align: right;
-        }
-        .logo-container {
-            vertical-align: middle;
-            padding-right: 10px;
+            vertical-align: top;
         }
         .logo-img {
-            max-width: 85px;
-            max-height: 65px;
+            max-width: 145px;
+            max-height: 70px;
             object-fit: contain;
+            display: inline-block;
         }
         .company-name {
             font-size: 11.5pt;
@@ -353,9 +358,7 @@
     @php
         $company = \App\Facades\CompanyFacade::getCompany();
         $logoBase64 = null;
-        $logoPath = $company?->logo_path 
-            ? public_path('storage/' . $company->logo_path)
-            : public_path('img/logo-inventory.jpg');
+        $logoPath = public_path('img/logo-light.png');
 
         if (file_exists($logoPath)) {
             $logoData = file_get_contents($logoPath);
@@ -400,35 +403,36 @@
     <!-- ENCABEZADO CORPORATIVO -->
     <table class="header-table">
         <tr>
+            <!-- COLUMNA IZQUIERDA: DATOS EMPRESA Y SUCURSAL -->
             <td class="branding-left">
-                <table style="border-collapse: collapse;">
-                    <tr>
-                        @if($logoBase64)
-                        <td class="logo-container">
-                            <img src="{{ $logoBase64 }}" class="logo-img">
-                        </td>
-                        @endif
-                        <td>
-                            <div class="company-name">{{ $company?->name ?? $request->warehouse->branch->company->name }}</div>
-                            <div class="branch-title">Sucursal: {{ $request->warehouse->branch->name }}</div>
-                            <div class="company-subtext">
-                                {{ $request->warehouse->branch->address }}<br>
-                                @if($request->warehouse->branch->phone)
-                                Tel: {{ $request->warehouse->branch->phone }} &bull;
-                                @endif
-                                Sistema ERP Los Olivos
-                            </div>
-                        </td>
-                    </tr>
-                </table>
+                @if($company?->show_name ?? true)
+                <div class="company-name">{{ $company?->name ?? $request->warehouse->branch->company->name }}</div>
+                @endif
+                <div class="branch-title">Sucursal: {{ $request->warehouse->branch->name }}</div>
+                <div class="company-subtext">
+                    {{ $request->warehouse->branch->address }}<br>
+                    @if($request->warehouse->branch->phone)
+                    Tel: {{ $request->warehouse->branch->phone }} &bull;
+                    @endif
+                    Sistema ERP Los Olivos
+                </div>
             </td>
+
+            <!-- COLUMNA CENTRAL: LOGOTIPO CANÓNICO -->
+            <td class="branding-center">
+                @if($logoBase64)
+                <img src="{{ $logoBase64 }}" class="logo-img" alt="Logotipo Corporativo">
+                @endif
+            </td>
+
+            <!-- COLUMNA DERECHA: DATOS DEL COMPROBANTE -->
             <td class="doc-info-right">
                 <div class="doc-title-badge">Solicitud de Consumo</div>
                 <div class="doc-number">Nº {{ $request->formatted_number }}</div>
                 <div class="meta-dates">
                     <strong>Fecha Emisión:</strong> {{ $request->created_at->format('d/m/Y') }} · {{ $request->created_at->format('H:i') }} hrs
                 </div>
-                <div>
+                <div style="margin-top: 3px;">
                     <span class="badge {{ $statusClass }}">{{ $statusLabel }}</span>
                 </div>
             </td>

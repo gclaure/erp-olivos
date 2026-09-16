@@ -24,3 +24,10 @@ The PDF receipt SHALL render using clean typography, high-contrast Slate color h
 #### Scenario: Rendering PDF on letter size
 - **WHEN** the PDF is generated and streamed to the browser or downloaded
 - **THEN** it renders with letter portrait layout, clean table lines, status badges, and institutional footer without visual clipping or overflow
+
+### Requirement: Cabecera balanceada con logotipo centrado
+El encabezado corporativo del PDF SHALL ubicar el logotipo en la posición central para máxima nitidez y balance estético.
+
+#### Scenario: Visualización del logotipo en la cabecera del comprobante
+- **WHEN** se genera el PDF de consumo
+- **THEN** el logo se presenta en el centro de la cabecera sin comprimirse contra los textos laterales

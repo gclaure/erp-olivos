@@ -1,9 +1,6 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import Dropzone from 'dropzone';
-import 'dropzone/dist/dropzone.css';
 
 const props = defineProps({
     company: Object,
@@ -16,57 +13,12 @@ const form = useForm({
     phone: props.company?.phone || '',
     email: props.company?.email || '',
     show_name: props.company?.show_name ?? true,
-    logo: null,
-    inventory_method: props.company?.inventory_method || 'PROMEDIO_PONDERADO',
-    inventories_closed_until: props.company?.inventories_closed_until || '',
-});
-
-const dropzoneRef = ref(null);
-const dropzoneInstance = ref(null);
-
-onMounted(() => {
-    if (dropzoneRef.value) {
-        dropzoneInstance.value = new Dropzone(dropzoneRef.value, {
-            url: '/',
-            autoProcessQueue: false,
-            maxFiles: 1,
-            acceptedFiles: 'image/*',
-            addRemoveLinks: true,
-            dictDefaultMessage: `
-                <div class='flex flex-col items-center justify-center space-y-3 p-4'>
-                    <div class='size-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center border border-indigo-100 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform duration-300'>
-                        <svg class='size-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z'></path></svg>
-                    </div>
-                    <div class='text-center text-zinc-600 dark:text-zinc-400'>
-                        <p class='text-sm font-bold'>Arrastra el logo aquí</p>
-                        <p class='text-xs'>o haz clic para buscar</p>
-                    </div>
-                </div>
-            `,
-            dictRemoveFile: 'Quitar Logo',
-            init: function() {
-                this.on('addedfile', (file) => {
-                    form.logo = file;
-                    if (this.files.length > 1) {
-                        this.removeFile(this.files[0]);
-                    }
-                });
-                this.on('removedfile', () => {
-                    form.logo = null;
-                });
-            }
-        });
-    }
+    receipt_type: props.company?.receipt_type || 'media',
 });
 
 const submit = () => {
     form.post(route('admin.company.update'), {
-        forceFormData: true,
-        onSuccess: () => {
-            if (dropzoneInstance.value) {
-                dropzoneInstance.value.removeAllFiles(true);
-            }
-        },
+        preserveScroll: true,
     });
 };
 </script>
@@ -95,14 +47,9 @@ const submit = () => {
 
                         <div class="flex flex-col items-center p-6 bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl border border-zinc-100 dark:border-zinc-800 text-center">
                             <div class="relative group mb-4">
-                                <img src="/img/logo-light.png" class="size-32 object-contain rounded-xl border border-white dark:border-zinc-700 p-2 bg-white shadow-sm" />
-                                
-                                <div v-if="form.processing" class="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center">
-                                    <svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                </div>
+                                <img src="/img/logo-light.png" 
+                                     alt="Logo Corporativo"
+                                     class="size-32 object-contain rounded-xl border border-white dark:border-zinc-700 p-2 bg-white shadow-sm" />
                             </div>
 
                             <h3 class="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">{{ form.name || 'Nombre de la Empresa' }}</h3>
@@ -118,6 +65,14 @@ const submit = () => {
                                     <p class="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{{ form.phone || '---' }}</p>
                                 </div>
                             </div>
+
+                            <div class="mt-4 w-full pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-left">
+                                <span class="text-[11px] text-zinc-500 dark:text-zinc-400">Impresión por Defecto</span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase"
+                                      :class="form.receipt_type === 'rollo' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-400'">
+                                    {{ form.receipt_type === 'rollo' ? 'Ticket 80mm' : 'Media / Carta' }}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -127,31 +82,7 @@ const submit = () => {
                     <div class="p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
                         <form @submit.prevent="submit" class="space-y-6">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Logo de la Empresa</label>
-                                    
-                                    <div class="w-full group">
-                                        <div 
-                                            ref="dropzoneRef" 
-                                            class="dropzone !bg-zinc-50/50 dark:!bg-zinc-900/50 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl !min-h-[180px] flex items-center justify-center cursor-pointer transition-all duration-300 hover:border-indigo-400 dark:hover:border-indigo-500/50 hover:bg-white dark:hover:bg-zinc-800/80 shadow-sm hover:shadow-md"
-                                        >
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-lg">
-                                        <p class="flex items-center gap-2 text-[11px] text-amber-700 dark:text-amber-400 font-medium">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                            </svg>
-                                            El logotipo no debe contener texto (solo el icono/isotipo).
-                                        </p>
-                                    </div>
-
-                                    <p class="text-[11px] text-zinc-500 mt-2">Tamaño recomendado: 512x512px. Máximo 2MB.</p>
-                                    <p v-if="form.errors.logo" class="text-xs text-rose-500 mt-1">{{ form.errors.logo }}</p>
-                                </div>
-
-                                <!-- Inputs -->
+                                <!-- Inputs Principales -->
                                 <div class="space-y-2">
                                     <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Nombre Comercial *</label>
                                     <div class="relative">
@@ -204,7 +135,7 @@ const submit = () => {
                                     <p v-if="form.errors.phone" class="text-xs text-rose-500 mt-1">{{ form.errors.phone }}</p>
                                 </div>
 
-                                <div class="space-y-2">
+                                <div class="space-y-2 md:col-span-2">
                                     <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Correo Electrónico</label>
                                     <div class="relative">
                                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
@@ -217,59 +148,89 @@ const submit = () => {
                                     <p v-if="form.errors.email" class="text-xs text-rose-500 mt-1">{{ form.errors.email }}</p>
                                 </div>
 
-                                <!-- Configuración de Inventario -->
+                                <!-- Preferencias de Formato de Impresión -->
                                 <div class="col-span-full border-t border-zinc-100 dark:border-zinc-800 pt-6 mt-2">
-                                    <h3 class="text-sm font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <h3 class="text-sm font-bold text-zinc-900 dark:text-white mb-1 flex items-center gap-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 text-indigo-500">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24-3.306 1.15-6.425 3.78-8.521 2.63-2.096 6.13-2.585 9.22-1.306M6.72 13.829a8.966 8.966 0 0 1-2.22-5.748C4.5 3.582 8.082 0 12.582 0c3.5 0 6.5 2.2 7.6 5.3" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
                                         </svg>
-                                        Configuración de Inventario (ERP-Grade)
+                                        Formato Predeterminado de Impresión
                                     </h3>
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+                                        Define el diseño y dimensiones predeterminadas para los comprobantes, recibos de venta y proformas.
+                                    </p>
 
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div class="space-y-2">
-                                            <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Método de Valuación</label>
-                                            <div class="relative group">
-                                                <select 
-                                                    v-model="form.inventory_method" 
-                                                    :disabled="company?.has_inventory_movements"
-                                                    class="block w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none disabled:bg-zinc-100 dark:disabled:bg-zinc-900/50 disabled:cursor-not-allowed"
-                                                >
-                                                    <option value="PROMEDIO_PONDERADO">Promedio Ponderado</option>
-                                                    <option value="PEPS">PEPS (Primeras Entradas, Primeras Salidas)</option>
-                                                </select>
-                                                <div v-if="company?.has_inventory_movements" class="mt-2 p-2 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-md">
-                                                    <p class="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium leading-tight">
-                                                        Bloqueado: Ya existen movimientos en el Kardex. Para cambiar el método, el inventario debe estar vacío.
-                                                    </p>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <!-- Opción Media Página / Carta -->
+                                        <div 
+                                            @click="form.receipt_type = 'media'"
+                                            class="relative flex flex-col p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 select-none"
+                                            :class="form.receipt_type === 'media' 
+                                                ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20 dark:border-indigo-500 shadow-sm' 
+                                                : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 hover:border-zinc-300 dark:hover:border-zinc-700'"
+                                        >
+                                            <div class="flex items-center justify-between mb-2">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="p-2 rounded-lg" :class="form.receipt_type === 'media' ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        <span class="text-sm font-bold text-zinc-900 dark:text-white block">Media Página / Carta (PDF)</span>
+                                                        <span class="text-[11px] text-zinc-500 dark:text-zinc-400">Documento estándar institucional</span>
+                                                    </div>
+                                                </div>
+                                                <div class="size-5 rounded-full border flex items-center justify-center"
+                                                     :class="form.receipt_type === 'media' ? 'border-indigo-600 bg-indigo-600' : 'border-zinc-300 dark:border-zinc-700'">
+                                                    <div v-if="form.receipt_type === 'media'" class="size-2 rounded-full bg-white"></div>
                                                 </div>
                                             </div>
-                                            <p v-if="form.errors.inventory_method" class="text-xs text-rose-500 mt-1">{{ form.errors.inventory_method }}</p>
+                                            <p class="text-xs text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
+                                                Ideal para impresión en hojas bond membretadas, archivos PDF descargables y documentos con firmas de conformidad.
+                                            </p>
                                         </div>
 
-                                        <div class="space-y-2">
-                                            <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Cierre Contable de Inventario</label>
-                                            <div class="relative">
-                                                <input 
-                                                    v-model="form.inventories_closed_until" 
-                                                    type="date" 
-                                                    class="block w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-                                                />
+                                        <!-- Opción Rollo / Ticket Térmico -->
+                                        <div 
+                                            @click="form.receipt_type = 'rollo'"
+                                            class="relative flex flex-col p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 select-none"
+                                            :class="form.receipt_type === 'rollo' 
+                                                ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20 dark:border-indigo-500 shadow-sm' 
+                                                : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 hover:border-zinc-300 dark:hover:border-zinc-700'"
+                                        >
+                                            <div class="flex items-center justify-between mb-2">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="p-2 rounded-lg" :class="form.receipt_type === 'rollo' ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        <span class="text-sm font-bold text-zinc-900 dark:text-white block">Rollo / Ticket Térmico (80mm)</span>
+                                                        <span class="text-[11px] text-zinc-500 dark:text-zinc-400">Impresoras térmicas de POS</span>
+                                                    </div>
+                                                </div>
+                                                <div class="size-5 rounded-full border flex items-center justify-center"
+                                                     :class="form.receipt_type === 'rollo' ? 'border-indigo-600 bg-indigo-600' : 'border-zinc-300 dark:border-zinc-700'">
+                                                    <div v-if="form.receipt_type === 'rollo'" class="size-2 rounded-full bg-white"></div>
+                                                </div>
                                             </div>
-                                            <p class="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 italic">
-                                                No se permitirán movimientos antes de esta fecha.
+                                            <p class="text-xs text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
+                                                Formato continuo optimizado para impresoras térmicas de punto de venta (POS) y recibos rápidos de mostrador.
                                             </p>
-                                            <p v-if="form.errors.inventories_closed_until" class="text-xs text-rose-500 mt-1">{{ form.errors.inventories_closed_until }}</p>
                                         </div>
                                     </div>
+                                    <p v-if="form.errors.receipt_type" class="text-xs text-rose-500 mt-2">{{ form.errors.receipt_type }}</p>
                                 </div>
 
-                                <!-- Switch -->
+                                <!-- Switch Mostrar Nombre -->
                                 <div class="col-span-full">
                                     <div class="p-4 bg-zinc-50 dark:bg-zinc-950/20 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-4">
                                         <div class="flex-1">
                                             <h4 class="font-bold text-zinc-800 dark:text-zinc-100 text-sm">Mostrar nombre en el menú</h4>
-                                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Si se desactiva, solo aparecerá el logo en la barra lateral.</p>
+                                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Si se desactiva, solo aparecerá el logo en la barra lateral e impresiones.</p>
                                         </div>
                                         
                                         <div class="flex items-center">
@@ -313,32 +274,3 @@ const submit = () => {
         </div>
     </AdminLayout>
 </template>
-
-<style scoped>
-.dropzone {
-    border: none !important;
-}
-
-:deep(.dz-preview) {
-    background: transparent !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100% !important;
-    display: flex !important;
-    justify-content: center !important;
-}
-
-:deep(.dz-image) {
-    border-radius: 12px !important;
-    width: 120px !important;
-    height: 120px !important;
-}
-
-:deep(.dz-remove) {
-    color: #ef4444 !important;
-    text-decoration: none !important;
-    font-size: 11px !important;
-    font-weight: bold !important;
-    margin-top: 8px !important;
-}
-</style>
