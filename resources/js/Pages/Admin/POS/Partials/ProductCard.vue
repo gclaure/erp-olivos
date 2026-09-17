@@ -12,10 +12,23 @@ const emit = defineEmits(['add', 'update-quantity', 'show-detail']);
 
 const page = usePage();
 
-const isConsumerView = computed(() => {
+const isConsumer = computed(() => {
     if (props.operationType !== 'consumption') return false;
-    const roles = page.props.auth?.user?.roles || [];
-    return roles.includes('Consumidor') || roles.includes('consumidor');
+    const user = page.props.auth?.user;
+    if (!user) return false;
+    const roles = user.roles || [];
+    const isSpecialAdmin = user.is_super_admin || roles.some(r => ['Admin', 'admin', 'Administrador', 'administrador', 'Super Admin'].includes(r));
+    return roles.some(r => ['Consumidor', 'consumidor'].includes(r)) && !isSpecialAdmin;
+});
+
+const isConsumptionMode = computed(() => props.operationType === 'consumption');
+
+const isAdmin = computed(() => {
+    const user = page.props.auth?.user;
+    if (!user) return false;
+    if (user.is_super_admin) return true;
+    const roles = user.roles || [];
+    return roles.some(r => ['Admin', 'admin', 'Administrador', 'administrador', 'Super Admin', 'super-admin'].includes(r));
 });
 
 const isSupply = computed(() => props.product?.type === 'insumo' || props.product?.is_inventoriable === false);
@@ -29,12 +42,14 @@ const availableQty = computed(() => {
 
 const hasStock = computed(() => isSupply.value || availableQty.value > 0);
 
+const canInteract = computed(() => isConsumer.value || (isConsumptionMode.value && isAdmin.value) || hasStock.value);
+
 const myReserved = computed(() => {
     return Math.floor(parseFloat(props.product.my_reserved_quantity || 0));
 });
 
 const qty = ref(1);
-const maxQty = computed(() => isSupply.value ? 99999 : Math.max(1, Math.floor(availableQty.value)));
+const maxQty = computed(() => (isSupply.value || isConsumer.value || (isConsumptionMode.value && isAdmin.value)) ? 99999 : Math.max(1, Math.floor(availableQty.value)));
 
 const cartItem = computed(() => {
     if (!props.cart.length) return null;
@@ -90,7 +105,7 @@ const handleCardClick = () => {
         @click="handleCardClick"
         :title="product.name"
         class="relative rounded-xl sm:rounded-2xl overflow-hidden flex flex-col transition-all duration-300 group bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/10 cursor-pointer"
-        :class="{ 'opacity-60 cursor-not-allowed': !hasStock }"
+        :class="{ 'opacity-60 cursor-not-allowed': !canInteract }"
     >
         <!-- Imagen del producto -->
         <div class="aspect-[4/3] flex items-center justify-center p-2 sm:p-4 relative overflow-hidden transition-colors duration-300 bg-gradient-to-b from-zinc-50 via-white to-zinc-50 dark:from-secondary-900 dark:via-secondary-800 dark:to-secondary-900">
@@ -138,19 +153,18 @@ const handleCardClick = () => {
 
             <!-- Badge Stock / Disponibilidad -->
             <div class="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
-                <template v-if="isSupply">
+                <template v-if="isConsumer">
+                    <span 
+                        class="px-2 py-0.5 bg-emerald-600 text-white text-[8px] sm:text-[9px] font-black uppercase rounded-full shadow-sm border-2 border-white dark:border-secondary-800"
+                    >
+                        Disponible
+                    </span>
+                </template>
+                <template v-else-if="isSupply">
                     <span 
                         class="px-2 py-0.5 bg-amber-600 text-white text-[8px] font-black uppercase rounded-full shadow-sm border-2 border-white dark:border-secondary-800"
                     >
                         Insumo
-                    </span>
-                </template>
-                <template v-else-if="isConsumerView">
-                    <span 
-                        :class="hasStock ? 'bg-emerald-600' : 'bg-rose-500'"
-                        class="px-2 py-0.5 text-white text-[8px] sm:text-[9px] font-black uppercase rounded-full shadow-sm border-2 border-white dark:border-secondary-800"
-                    >
-                        {{ hasStock ? 'Disponible' : 'Agotado' }}
                     </span>
                 </template>
                 <template v-else>
@@ -173,13 +187,8 @@ const handleCardClick = () => {
             </div>
             <h3 class="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-secondary-50 leading-snug mb-1 line-clamp-2 uppercase">{{ product.name }}</h3>
             
-            <!-- Badge Reservado / Mis Reservados -->
-            <div v-if="isConsumerView && myReserved > 0" class="mt-1 self-start">
-                <span class="px-1.5 py-0.5 bg-orange-500 text-white text-[9px] font-bold uppercase rounded shadow-sm border border-orange-400">
-                    Mis reservados: {{ myReserved }}
-                </span>
-            </div>
-            <div v-else-if="!isConsumerView && parseFloat(product.reserved_quantity) > 0" class="mt-1 self-start">
+            <!-- Badge Reservado (solo para roles no consumidores) -->
+            <div v-if="!isConsumer && parseFloat(product.reserved_quantity) > 0" class="mt-1 self-start">
                 <span class="px-1.5 py-0.5 bg-orange-500 text-white text-[9px] font-bold uppercase rounded shadow-sm border border-orange-400">
                     Res: {{ Math.floor(product.reserved_quantity) }}
                 </span>
@@ -192,7 +201,7 @@ const handleCardClick = () => {
 
         <!-- Stepper de cantidad (solo móvil < lg) -->
         <div 
-            v-if="hasStock"
+            v-if="canInteract"
             @click.stop
             class="lg:hidden flex items-center justify-between gap-2 px-2 pb-2 sm:px-3 sm:pb-3"
         >

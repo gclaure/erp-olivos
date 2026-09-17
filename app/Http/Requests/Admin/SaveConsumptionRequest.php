@@ -63,6 +63,16 @@ class SaveConsumptionRequest extends FormRequest
     public function withValidator(\Illuminate\Validation\Validator $validator): void
     {
         $validator->after(function (\Illuminate\Validation\Validator $validator): void {
+            $user = $this->user();
+            
+            // Se omite la validación de stock disponible para el rol Consumidor y Administrador / Super Administrador
+            $isConsumer = $user && $user->hasRole(['Consumidor', 'consumidor']);
+            $isAdmin = $user && ($user->is_super_admin || $user->hasRole(['Admin', 'admin', 'Administrador', 'administrador', 'Super Admin', 'super-admin']));
+
+            if ($isConsumer || $isAdmin) {
+                return;
+            }
+
             $cart = $this->input('cart');
             if (!is_array($cart)) {
                 return;

@@ -44,7 +44,13 @@ const isAdmin = computed(() => {
     if (!currentUser.value) return false;
     if (currentUser.value.is_super_admin) return true;
     const roles = currentUser.value.roles || [];
-    return roles.some(r => ['Admin', 'Administrador', 'admin', 'administrador', 'Super Admin'].includes(r));
+    return roles.some(r => ['Admin', 'Administrador', 'admin', 'administrador', 'Super Admin', 'super-admin'].includes(r));
+});
+
+const isConsumer = computed(() => {
+    if (!currentUser.value) return false;
+    const roles = currentUser.value.roles || [];
+    return roles.some(r => ['Consumidor', 'consumidor'].includes(r)) && !isAdmin.value;
 });
 
 const operationalAreas = [
@@ -177,8 +183,8 @@ const toggleSpeechRecognition = () => {
 };
 
 const isStockExceeded = (item) => {
-    // En solicitudes de consumo nunca se bloquea ni se marca error por stock
-    if (props.operationType === 'consumption') {
+    // Si el usuario tiene el rol exclusivo de Consumidor en consumo, no se le restringe por stock
+    if (props.operationType === 'consumption' && isConsumer.value) {
         return false;
     }
     // Si es un producto de tipo insumo o no inventariable, nunca excede stock (no aplica control de stock físico)
@@ -206,7 +212,7 @@ const getAvailableStock = (item) => {
 };
 
 const hasStockErrors = computed(() => {
-    if (props.operationType === 'consumption') {
+    if (props.operationType === 'consumption' && (isConsumer.value || isAdmin.value)) {
         return false;
     }
     return props.cart.some(item => isStockExceeded(item));

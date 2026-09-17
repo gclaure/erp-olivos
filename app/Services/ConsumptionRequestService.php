@@ -207,6 +207,32 @@ class ConsumptionRequestService
                 $detail->observation = $isDifferent ? trim((string)$observation) : $detail->observation;
                 $detail->receive_observation = trim((string)($receiveObservations[$detail->id] ?? '')) ?: null;
                 $detail->save();
+
+                // Registrar salida en Kardex y debitar de stock solo en la entrega/recepción efectiva
+                $isInventoriable = $detail->product ? $detail->product->isInventoriable() : true;
+                if ($isInventoriable && $qty > 0) {
+                    $productId = $detail->product_id;
+                    $warehouseId = $consumptionRequest->warehouse_id;
+
+                    $lastKardex = Kardex::withoutGlobalScopes()
+                        ->where('product_id', $productId)
+                        ->where('warehouse_id', $warehouseId)
+                        ->latest('id')
+                        ->first();
+                    $avgCost = $lastKardex ? (string) $lastKardex->avg_cost : '0.0000';
+
+                    $this->kardexService->record(
+                        type: KardexMovementType::ADJUSTMENT_OUT,
+                        productId: $productId,
+                        warehouseId: $warehouseId,
+                        quantity: $qty,
+                        unitCost: $avgCost,
+                        userId: Auth::id(),
+                        notes: "Entrega Conforme de Consumo Interno: {$consumptionRequest->requested_by}",
+                        recordableType: ConsumptionRequest::class,
+                        recordableId: $consumptionRequest->id
+                    );
+                }
             }
 
             $consumptionRequest->status = 'entregado';

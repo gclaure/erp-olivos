@@ -13,13 +13,24 @@ const emit = defineEmits(['close', 'add-to-cart']);
 
 const page = usePage();
 
-const isConsumerView = computed(() => {
+const isConsumer = computed(() => {
     if (props.operationType !== 'consumption') return false;
-    const roles = page.props.auth?.user?.roles || [];
-    return roles.includes('Consumidor') || roles.includes('consumidor');
+    const user = page.props.auth?.user;
+    if (!user) return false;
+    const roles = user.roles || [];
+    const isSpecialAdmin = user.is_super_admin || roles.some(r => ['Admin', 'admin', 'Administrador', 'administrador', 'Super Admin'].includes(r));
+    return roles.some(r => ['Consumidor', 'consumidor'].includes(r)) && !isSpecialAdmin;
 });
 
 const isConsumptionMode = computed(() => props.operationType === 'consumption');
+
+const isAdmin = computed(() => {
+    const user = page.props.auth?.user;
+    if (!user) return false;
+    if (user.is_super_admin) return true;
+    const roles = user.roles || [];
+    return roles.some(r => ['Admin', 'admin', 'Administrador', 'administrador', 'Super Admin', 'super-admin'].includes(r));
+});
 
 const isSupply = computed(() => props.product?.type === 'insumo' || props.product?.is_inventoriable === false);
 
@@ -33,7 +44,7 @@ const availableQty = computed(() => {
 
 const hasStock = computed(() => isSupply.value || availableQty.value > 0);
 
-const canAdd = computed(() => isConsumptionMode.value || hasStock.value);
+const canAdd = computed(() => isConsumer.value || (isConsumptionMode.value && isAdmin.value) || hasStock.value);
 
 const myReserved = computed(() => {
     if (!props.product) return 0;
@@ -41,7 +52,7 @@ const myReserved = computed(() => {
 });
 
 const qty = ref(1);
-const maxQty = computed(() => (isSupply.value || isConsumptionMode.value) ? 99999 : Math.max(1, Math.floor(availableQty.value)));
+const maxQty = computed(() => (isSupply.value || isConsumer.value || (isConsumptionMode.value && isAdmin.value)) ? 99999 : Math.max(1, Math.floor(availableQty.value)));
 
 watch(() => props.show, (val) => {
     if (val) {
@@ -170,27 +181,24 @@ const handleAddToCart = () => {
 
                 <!-- Estado de Disponibilidad y Stock -->
                 <div class="p-3.5 rounded-xl border flex items-center justify-between"
-                     :class="hasStock ? 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300' : 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40 text-rose-800 dark:text-rose-300'">
+                     :class="(isConsumer || hasStock) ? 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300' : 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40 text-rose-800 dark:text-rose-300'">
                     <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-xl" :class="hasStock ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
-                            {{ hasStock ? 'check_circle' : 'cancel' }}
+                        <span class="material-symbols-outlined text-xl" :class="(isConsumer || hasStock) ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
+                            {{ (isConsumer || hasStock) ? 'check_circle' : 'cancel' }}
                         </span>
                         <div>
                             <p class="font-bold text-xs uppercase tracking-wide">
-                                <template v-if="isSupply">
-                                    Insumo Permanente (Disponible)
+                                <template v-if="isConsumer">
+                                    Disponible para Consumo
                                 </template>
-                                <template v-else-if="isConsumerView">
-                                    {{ hasStock ? 'Disponible para Consumo' : 'Sin Stock Físico Disponible' }}
+                                <template v-else-if="isSupply">
+                                    Insumo Permanente (Disponible)
                                 </template>
                                 <template v-else>
                                     Stock Disponible: {{ Math.floor(availableQty) }} {{ product.unit || 'uds' }}
                                 </template>
                             </p>
-                            <p v-if="isConsumerView && myReserved > 0" class="text-[10px] text-orange-600 dark:text-orange-400 font-bold">
-                                Tienes {{ myReserved }} reservado(s) en solicitudes pendientes
-                            </p>
-                            <p v-else-if="!isConsumerView && parseFloat(product.reserved_quantity) > 0" class="text-[10px] text-zinc-500 dark:text-secondary-400 font-medium">
+                            <p v-if="!isConsumer && parseFloat(product.reserved_quantity) > 0" class="text-[10px] text-zinc-500 dark:text-secondary-400 font-medium">
                                 Total Reservado: {{ Math.floor(product.reserved_quantity) }} {{ product.unit || 'uds' }}
                             </p>
                         </div>

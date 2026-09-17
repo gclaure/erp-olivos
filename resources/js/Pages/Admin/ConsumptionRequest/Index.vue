@@ -695,17 +695,35 @@ const handleConsolidatePurchases = () => {
                                     <span class="text-[10px] font-extrabold tracking-tight mt-0.5" :class="getDetailedStatusInfo(req).sublabelClass">
                                         {{ getDetailedStatusInfo(req).sublabel }}
                                     </span>
-                                    <!-- Alerta Falta de Stock si aplica -->
-                                    <span 
-                                        v-if="(req.status === 'pendiente' || req.status === 'parcial' || req.status === 'aprobado' || req.status === 'despachado_parcial') && req.has_missing_stock"
-                                        class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 bg-amber-200/90 dark:bg-amber-500/30 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-600/50 shadow-xs mt-1"
-                                        title="Falta stock en almacén para cumplir la solicitud"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-2.5 h-2.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
-                                        Falta Stock
-                                    </span>
+                                    <!-- Indicadores Semáforo de Disponibilidad de Stock para Almacén -->
+                                    <div v-if="req.status === 'pendiente' || req.status === 'parcial' || req.status === 'aprobado' || req.status === 'despachado_parcial'" class="mt-1">
+                                        <span 
+                                            v-if="req.stock_availability?.status === 'complete'"
+                                            class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-300 dark:border-emerald-800 shadow-xs"
+                                            title="Todos los insumos cuentan con stock disponible en almacén"
+                                        >
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                            Stock Completo
+                                        </span>
+                                        <span 
+                                            v-else-if="req.stock_availability?.status === 'partial'"
+                                            class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-700 shadow-xs"
+                                            :title="`Faltan existencias en ${req.stock_availability.missing_count} de ${req.stock_availability.total_count} insumos`"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-2.5 h-2.5 text-amber-600">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </svg>
+                                            Faltan {{ req.stock_availability.missing_count }}/{{ req.stock_availability.total_count }} ítems
+                                        </span>
+                                        <span 
+                                            v-else-if="req.stock_availability?.status === 'none'"
+                                            class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-rose-800 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-300 dark:border-rose-800 shadow-xs"
+                                            title="No hay stock en almacén para los insumos solicitados"
+                                        >
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                            Sin Stock
+                                        </span>
+                                    </div>
                                 </div>
                             </td>
 

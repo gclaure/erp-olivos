@@ -81,6 +81,45 @@ class ConsumptionRequestResource extends JsonResource
                 }
                 return false;
             }, false),
+            'stock_availability' => $this->whenLoaded('details', function () {
+                $totalInventoriable = 0;
+                $fullyAvailable = 0;
+                $missingCount = 0;
+
+                foreach ($this->details as $detail) {
+                    if ($detail->product && !$detail->product->isInventoriable()) {
+                        continue;
+                    }
+                    $totalInventoriable++;
+                    $stock = (float) ($detail->product?->stocks->where('warehouse_id', $this->warehouse_id)->first()?->quantity ?? 0);
+                    $pending = (float) $detail->quantity_requested - (float) $detail->quantity_delivered;
+                    if ($pending <= 0) {
+                        $fullyAvailable++;
+                    } elseif ($stock >= $pending) {
+                        $fullyAvailable++;
+                    } else {
+                        $missingCount++;
+                    }
+                }
+
+                if ($totalInventoriable === 0 || $missingCount === 0) {
+                    $status = 'complete';
+                } elseif ($fullyAvailable === 0) {
+                    $status = 'none';
+                } else {
+                    $status = 'partial';
+                }
+
+                return [
+                    'status' => $status,
+                    'missing_count' => $missingCount,
+                    'total_count' => $totalInventoriable,
+                ];
+            }, [
+                'status' => 'complete',
+                'missing_count' => 0,
+                'total_count' => 0,
+            ]),
             'can_edit' => $this->status === 'pendiente' && is_null($this->approved_at) && (auth()->check() && (auth()->id() === $this->user_id || auth()->user()?->is_super_admin)),
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'created_at_time' => $this->created_at?->format('H:i'),

@@ -92,30 +92,7 @@ class ConsumptionRequestDispatchService
                 }
 
                 if ($dispatchQty > 0) {
-                    if ($isInventoriable) {
-                        // Obtener costo promedio del producto en este almacén
-                        $lastKardex = Kardex::withoutGlobalScopes()
-                            ->where('product_id', $productId)
-                            ->where('warehouse_id', $warehouseId)
-                            ->latest('id')
-                            ->first();
-                        $avgCost = $lastKardex ? (string) $lastKardex->avg_cost : '0.0000';
-
-                        // Registrar en Kardex como ADJUSTMENT_OUT (Salida de Consumo)
-                        $this->kardexService->record(
-                            type: KardexMovementType::ADJUSTMENT_OUT,
-                            productId: $productId,
-                            warehouseId: $warehouseId,
-                            quantity: $dispatchQty,
-                            unitCost: $avgCost,
-                            userId: Auth::id(),
-                            notes: "Despacho de Consumo Interno: {$consumptionRequest->requested_by}",
-                            recordableType: ConsumptionRequest::class,
-                            recordableId: $consumptionRequest->id
-                        );
-                    }
-
-                    // Actualizar el detalle
+                    // Actualizar la cantidad entregada/preparada sin alterar Kardex aún
                     $detail->quantity_delivered = $alreadyDelivered + $dispatchQty;
                     $detail->save();
                 }
