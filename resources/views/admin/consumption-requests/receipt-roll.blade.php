@@ -217,23 +217,45 @@
             <td style="width: 17%; text-align: right;">REC.</td>
         </tr>
         @foreach($request->details as $index => $detail)
+        @php
+            $reqQty = (float) $detail->quantity_requested;
+            $delivQty = (float) ($detail->quantity_delivered ?? 0);
+            $recvQty = $detail->quantity_received !== null ? (float) $detail->quantity_received : null;
+            $unitSymbol = $detail->product->unitOfMeasure?->abbreviation ?? $detail->product->unitOfMeasure?->name ?? 'UND';
+            $hasDiff = ($recvQty !== null && abs($recvQty - $reqQty) >= 0.01);
+            $obsText = $detail->receive_observation ?? $detail->observation;
+        @endphp
         <tr>
             <td colspan="4" style="padding-top: 3pt;">
                 <span class="item-name uppercase">{{ $detail->product->name }}</span>
-                <span class="item-code">[{{ $detail->product->code }}] · {{ $detail->product->unitOfMeasure?->symbol ?? 'UND' }}</span>
+                <span class="item-code">[{{ $detail->product->code }}] · {{ $unitSymbol }}</span>
                 
                 <table style="width: 100%; margin-top: 1pt;">
                     <tr style="font-size: 7.5pt;">
                         <td style="width: 50%; color: #6B6B67;">Cantidades:</td>
-                        <td style="width: 16%; text-align: right; font-weight: bold;">{{ number_format((float)$detail->quantity, 2) }}</td>
-                        <td style="width: 17%; text-align: right; font-weight: bold; color: #44773C;">{{ $detail->dispatched_quantity !== null ? number_format((float)$detail->dispatched_quantity, 2) : '-' }}</td>
-                        <td style="width: 17%; text-align: right; font-weight: bold; color: #15803D;">{{ $detail->received_quantity !== null ? number_format((float)$detail->received_quantity, 2) : '-' }}</td>
+                        <td style="width: 16%; text-align: right; font-weight: bold;">{{ number_format($reqQty, 2) }}</td>
+                        <td style="width: 17%; text-align: right; font-weight: bold; color: #44773C;">
+                            @if(in_array($request->status, ['pendiente', 'aprobado', 'observado']))
+                                -
+                            @else
+                                {{ number_format($delivQty, 2) }}
+                            @endif
+                        </td>
+                        <td style="width: 17%; text-align: right; font-weight: bold; color: #15803D;">
+                            @if($recvQty !== null)
+                                {{ number_format($recvQty, 2) }}
+                            @elseif($request->status === 'entregado')
+                                {{ number_format($delivQty, 2) }}
+                            @else
+                                -
+                            @endif
+                        </td>
                     </tr>
                 </table>
 
-                @if($detail->has_discrepancy && $detail->observation)
+                @if(($hasDiff && $obsText) || $obsText)
                 <div style="font-size: 6.5pt; color: #B45309; margin-top: 1pt;">
-                    <strong>Obs:</strong> {{ $detail->observation }}
+                    <strong>Obs:</strong> {{ $obsText }}
                 </div>
                 @endif
                 <div style="border-bottom: 0.3pt dotted #ccc; margin-top: 2pt;"></div>

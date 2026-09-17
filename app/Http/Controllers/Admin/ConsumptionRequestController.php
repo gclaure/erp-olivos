@@ -220,7 +220,7 @@ class ConsumptionRequestController extends Controller
             $totalCreated = count($createdRequests);
             $numbers = implode(', #', array_map(fn($r) => $r->number, $createdRequests));
 
-            return redirect()->route('admin.consumption-requests.index')->with([
+            return redirect()->route('admin.consumption-requests.create')->with([
                 'success' => $totalCreated === 1
                     ? "Solicitud de consumo #{$firstRequest->number} de {$firstRequest->requested_by} registrada exitosamente."
                     : "Se crearon {$totalCreated} solicitudes de consumo (#{$numbers}) de {$firstRequest->requested_by}, una por cada almacén.",
