@@ -24,6 +24,17 @@ const sortOrder = ref(props.filters.sort_order || 'desc');
 const loadingPdf = ref(false);
 const loadingExcel = ref(false);
 
+const tableContainer = ref(null);
+
+const scrollTable = (direction) => {
+    if (!tableContainer.value) return;
+    const scrollAmount = 350;
+    tableContainer.value.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+    });
+};
+
 const updateFilters = debounce(() => {
     router.get(route('admin.kardex.index'), {
         product_id: productId.value,
@@ -241,10 +252,35 @@ const exportPdf = () => {
             </div>
         </div>
 
+        <!-- Barra de navegación y ayuda del scroll horizontal para tablas contables anchas (Sticky para que no se pierda al hacer scroll hacia abajo) -->
+        <div class="hidden md:flex 2xl:hidden sticky top-0 z-30 items-center justify-between px-4 py-2 bg-white/95 dark:bg-secondary-800/95 backdrop-blur-md rounded-xl border border-zinc-200/90 dark:border-secondary-700/90 mb-3 text-xs text-zinc-600 dark:text-secondary-300 shadow-md transition-all">
+            <div class="flex items-center gap-2 font-medium">
+                <span class="material-symbols-outlined text-[18px] text-indigo-500">swipe</span>
+                <span class="hidden sm:inline">Desliza horizontalmente para ver columnas contables</span>
+                <span class="sm:hidden">Desliza columnas</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button type="button"
+                        @click="scrollTable('left')"
+                        title="Desplazar a la izquierda"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-secondary-700 dark:hover:bg-secondary-600 border border-zinc-200 dark:border-secondary-600 text-zinc-700 dark:text-secondary-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold transition-all shadow-sm active:scale-95">
+                    <span class="material-symbols-outlined text-[16px] leading-none">chevron_left</span>
+                    <span class="text-[11px] hidden md:inline">Izquierda</span>
+                </button>
+                <button type="button"
+                        @click="scrollTable('right')"
+                        title="Desplazar a la derecha"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 font-bold transition-all shadow-sm active:scale-95">
+                    <span class="text-[11px] hidden md:inline">Derecha (Saldos)</span>
+                    <span class="material-symbols-outlined text-[16px] leading-none">chevron_right</span>
+                </button>
+            </div>
+        </div>
+
         <!-- Tabla Section -->
         <div class="bg-surface rounded-2xl border border-zinc-200 dark:border-secondary-700 overflow-hidden shadow-xl">
-            <div class="overflow-x-auto">
-                <table class="w-full text-[11px] text-left whitespace-nowrap border-collapse">
+            <div ref="tableContainer" class="overflow-x-auto table-scrollbar-visible">
+                <table class="w-full min-w-[1380px] text-[11px] text-left whitespace-nowrap border-collapse">
                     <thead>
                         <tr class="bg-zinc-100 dark:bg-secondary-700 border-b border-zinc-200 dark:border-secondary-600">
                             <th rowspan="2" class="px-4 py-3 font-bold text-zinc-600 dark:text-secondary-300 uppercase tracking-wider border-r border-zinc-200 dark:border-secondary-600 align-middle">Fecha</th>
@@ -424,5 +460,53 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 /* Estilo para las celdas de la tabla */
 td, th {
     transition: background-color 0.2s ease;
+}
+
+/* Scrollbar horizontal permanente y visible */
+.table-scrollbar-visible {
+    overflow-x: scroll !important;
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.dark .table-scrollbar-visible {
+    scrollbar-color: #52525b #181920;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar {
+    height: 10px !important;
+    background-color: #f1f5f9;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar {
+    background-color: #181920;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar-track {
+    background-color: #f1f5f9;
+    border-radius: 9999px;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar-track {
+    background-color: #181920;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar-thumb {
+    background-color: #94a3b8;
+    border-radius: 9999px;
+    border: 2px solid #f1f5f9;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar-thumb {
+    background-color: #52525b;
+    border-color: #181920;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background-color: #64748b;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background-color: #71717a;
 }
 </style>

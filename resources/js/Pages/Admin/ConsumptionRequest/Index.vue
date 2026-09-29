@@ -156,6 +156,17 @@ const order = ref(props.filters.order || 'desc');
 
 const localRequests = ref(props.requests?.data || []);
 
+const tableContainer = ref(null);
+
+const scrollTable = (direction) => {
+    if (!tableContainer.value) return;
+    const distance = 350;
+    tableContainer.value.scrollBy({
+        left: direction === 'left' ? -distance : distance,
+        behavior: 'smooth'
+    });
+};
+
 watch(() => props.requests, (newVal) => {
     localRequests.value = newVal?.data || [];
 }, { deep: true });
@@ -596,11 +607,39 @@ const handleConsolidatePurchases = () => {
             </div>
         </div>
 
+        <!-- Barra de navegación y ayuda del scroll horizontal (Sticky para que no se pierda al hacer scroll hacia abajo) -->
+        <div class="hidden md:flex 2xl:hidden sticky top-0 z-30 items-center justify-between px-4 py-2 bg-white/95 dark:bg-secondary-800/95 backdrop-blur-md rounded-xl border border-zinc-200/90 dark:border-secondary-700/90 mb-3 text-xs text-zinc-600 dark:text-secondary-300 shadow-md transition-all">
+            <div class="flex items-center gap-2 font-medium">
+                <span class="material-symbols-outlined text-[18px] text-indigo-500">swipe</span>
+                <span>Desliza horizontalmente para inspeccionar todas las columnas y acciones</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button 
+                    @click="scrollTable('left')" 
+                    type="button"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-secondary-700 dark:hover:bg-secondary-600 border border-zinc-200 dark:border-secondary-600 text-zinc-700 dark:text-secondary-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold transition-all shadow-sm active:scale-95"
+                    title="Desplazar tabla a la izquierda"
+                >
+                    <span class="material-symbols-outlined text-[16px] leading-none">chevron_left</span>
+                    <span class="text-[11px]">Izquierda</span>
+                </button>
+                <button 
+                    @click="scrollTable('right')" 
+                    type="button"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 font-bold transition-all shadow-sm active:scale-95"
+                    title="Desplazar tabla a la derecha"
+                >
+                    <span class="text-[11px]">Derecha (Acciones)</span>
+                    <span class="material-symbols-outlined text-[16px] leading-none">chevron_right</span>
+                </button>
+            </div>
+        </div>
+
         <!-- LISTADO -->
         <div class="bg-white dark:bg-secondary-800 rounded-2xl border border-zinc-200/60 dark:border-secondary-700 shadow-sm overflow-hidden transition-all duration-300">
             <!-- Vista de Escritorio (Tabla tradicional) -->
-            <div class="hidden md:block overflow-x-auto">
-                <table class="min-w-full divide-y divide-zinc-200 dark:divide-secondary-700">
+            <div ref="tableContainer" class="hidden md:block overflow-x-auto table-scrollbar-visible">
+                <table class="w-full min-w-[1180px] divide-y divide-zinc-200 dark:divide-secondary-700">
                     <thead class="bg-zinc-50 dark:bg-secondary-900/50">
                         <tr>
                             <th v-if="!isConsumidor" scope="col" class="w-12 px-6 py-4 text-center text-[10px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">
@@ -619,7 +658,7 @@ const handleConsolidatePurchases = () => {
                             <th scope="col" class="px-6 py-4 text-left text-[10px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Almacén Origen</th>
                             <th scope="col" class="hidden sm:table-cell px-6 py-4 text-left text-[10px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Solicitado Por</th>
                             <th scope="col" class="px-6 py-4 text-center text-[10px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Estado</th>
-                            <th scope="col" class="px-6 py-4 text-right text-[10px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider">Acciones</th>
+                            <th scope="col" class="px-6 py-4 text-right text-[10px] font-black text-zinc-500 dark:text-secondary-400 uppercase tracking-wider sticky right-0 z-20 bg-zinc-50 dark:bg-secondary-900 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.06)] dark:shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.3)]">Acciones</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-100 dark:divide-secondary-700/50 bg-white dark:bg-secondary-800">
@@ -628,7 +667,7 @@ const handleConsolidatePurchases = () => {
                             :key="req.id"
                             :class="[
                                 selectedRequestIds.includes(req.id) ? 'bg-indigo-50/20 dark:bg-indigo-950/10' : '',
-                                'hover:bg-zinc-50/50 dark:hover:bg-secondary-700/10 transition-colors'
+                                'hover:bg-zinc-50/50 dark:hover:bg-secondary-700/10 transition-colors group'
                             ]"
                         >
                             <!-- Checkbox Selección -->
@@ -727,8 +766,8 @@ const handleConsolidatePurchases = () => {
                                 </div>
                             </td>
 
-                            <!-- Acciones -->
-                            <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <!-- Acciones (Sticky Right) -->
+                            <td class="px-6 py-4 whitespace-nowrap text-right sticky right-0 z-10 bg-white dark:bg-secondary-800 group-hover:bg-zinc-50 dark:group-hover:bg-secondary-700/60 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.06)] dark:shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.3)]">
                                 <Link 
                                     :href="route('admin.consumption-requests.show', { consumption_request: req.id })"
                                     class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-secondary-900 dark:hover:bg-secondary-950 text-slate-700 dark:text-secondary-300 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-slate-200/50 dark:border-secondary-800"
@@ -913,3 +952,51 @@ const handleConsolidatePurchases = () => {
         </div>
     </div>
 </template>
+
+<style scoped>
+/* Barra de Scroll Horizontal Permanente y Visible */
+.table-scrollbar-visible {
+    overflow-x: scroll !important;
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.dark .table-scrollbar-visible {
+    scrollbar-color: #64748b #181920;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar {
+    height: 10px !important;
+    width: 8px;
+    display: block !important;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar-track {
+    background: #f1f5f9 !important;
+    border-top: 1px solid #e2e8f0;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar-track {
+    background: #181920 !important;
+    border-top: 1px solid #27272a;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar-thumb {
+    background: #94a3b8 !important;
+    border-radius: 9999px;
+    border: 2px solid #f1f5f9;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: #64748b !important;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar-thumb {
+    background: #52525b !important;
+    border: 2px solid #181920;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: #71717a !important;
+}
+</style>

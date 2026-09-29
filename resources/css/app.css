@@ -142,20 +142,41 @@
     }
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar (Vertical & Horizontal) */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #d8d4c8 transparent;
+}
+
+.dark .custom-scrollbar {
+    scrollbar-color: #565f50 transparent;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
+    height: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
+    border-radius: 9999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #d8d4c8;
-    border-radius: 10px;
+    border-radius: 9999px;
+    border: 1px solid transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #b9b7af;
 }
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #565f50;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #78826f;
+}
+

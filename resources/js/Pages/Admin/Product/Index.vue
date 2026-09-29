@@ -37,7 +37,16 @@ const editingProduct = ref(null);
 const showImagePreview = ref(false);
 const previewImages = ref([]);
 const previewName = ref('');
-const currentImageIndex = ref(0);
+const tableContainer = ref(null);
+
+const scrollTable = (direction) => {
+    if (!tableContainer.value) return;
+    const distance = 350;
+    tableContainer.value.scrollBy({
+        left: direction === 'left' ? -distance : distance,
+        behavior: 'smooth'
+    });
+};
 
 const openGallery = (images, name) => {
     if (!images || images.length === 0) return;
@@ -256,11 +265,39 @@ const downloadTemplate = () => {
             </div>
         </div>
 
+        <!-- Barra de navegación y ayuda del scroll horizontal para tabla de productos (Sticky para que no se pierda al hacer scroll hacia abajo) -->
+        <div class="hidden md:flex 2xl:hidden sticky top-0 z-30 items-center justify-between px-4 py-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-xl border border-zinc-200/90 dark:border-gray-700/90 mb-3 text-xs text-zinc-600 dark:text-zinc-300 shadow-md transition-all">
+            <div class="flex items-center gap-2 font-medium">
+                <span class="material-symbols-outlined text-[18px] text-indigo-500">swipe</span>
+                <span>Desliza horizontalmente para inspeccionar todas las columnas y acciones</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button 
+                    @click="scrollTable('left')" 
+                    type="button"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-gray-700 dark:hover:bg-gray-600 border border-zinc-200 dark:border-gray-600 text-zinc-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold transition-all shadow-sm active:scale-95"
+                    title="Desplazar tabla a la izquierda"
+                >
+                    <span class="material-symbols-outlined text-[16px] leading-none">chevron_left</span>
+                    <span class="text-[11px]">Izquierda</span>
+                </button>
+                <button 
+                    @click="scrollTable('right')" 
+                    type="button"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 font-bold transition-all shadow-sm active:scale-95"
+                    title="Desplazar tabla a la derecha"
+                >
+                    <span class="text-[11px]">Derecha (Acciones)</span>
+                    <span class="material-symbols-outlined text-[16px] leading-none">chevron_right</span>
+                </button>
+            </div>
+        </div>
+
         <!-- Table Section -->
         <div class="bg-surface dark:bg-gray-800 rounded-3xl border border-zinc-200 dark:border-gray-700 shadow-xl overflow-hidden mb-8">
-            <div class="hidden md:block overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead class="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-100 dark:border-gray-700">
+            <div ref="tableContainer" class="hidden md:block overflow-x-auto table-scrollbar-visible">
+                <table class="w-full min-w-[1260px] text-left border-collapse">
+                    <thead class="bg-zinc-50 dark:bg-zinc-800/80 border-b border-zinc-100 dark:border-gray-700">
                         <tr>
                             <th class="px-6 py-5 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Código</th>
                             <th class="px-6 py-5 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Producto</th>
@@ -269,7 +306,7 @@ const downloadTemplate = () => {
                             <th class="px-6 py-5 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest text-center">Epq.</th>
                             <th class="px-6 py-5 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest text-center">Und.</th>
                             <th class="px-6 py-5 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest text-center">Status</th>
-                            <th class="px-6 py-5 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest text-right w-32">Acciones</th>
+                            <th class="px-6 py-5 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest text-right w-32 sticky right-0 z-20 bg-zinc-50 dark:bg-zinc-800 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.06)] dark:shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.3)]">Acciones</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-100 dark:divide-secondary-700/30">
@@ -368,7 +405,7 @@ const downloadTemplate = () => {
                                     </span>
                                 </template>
                             </td>
-                            <td class="px-6 py-4 text-right whitespace-nowrap align-middle">
+                            <td class="px-6 py-4 text-right whitespace-nowrap align-middle sticky right-0 z-10 bg-white dark:bg-secondary-800 group-hover:bg-zinc-50 dark:group-hover:bg-secondary-700 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.06)] dark:shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.3)] transition-colors">
                                 <div class="flex items-center justify-end gap-1">
                                     <button @click="openEditModal(product)"
                                             class="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl transition-all active:scale-90"
@@ -570,4 +607,50 @@ const downloadTemplate = () => {
 <style scoped>
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Barra de Scroll Horizontal Permanente y Visible */
+.table-scrollbar-visible {
+    overflow-x: scroll !important;
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.dark .table-scrollbar-visible {
+    scrollbar-color: #64748b #181920;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar {
+    height: 10px !important;
+    width: 8px;
+    display: block !important;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar-track {
+    background: #f1f5f9 !important;
+    border-top: 1px solid #e2e8f0;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar-track {
+    background: #181920 !important;
+    border-top: 1px solid #27272a;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar-thumb {
+    background: #94a3b8 !important;
+    border-radius: 9999px;
+    border: 2px solid #f1f5f9;
+}
+
+.table-scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: #64748b !important;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar-thumb {
+    background: #52525b !important;
+    border: 2px solid #181920;
+}
+
+.dark .table-scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: #71717a !important;
+}
 </style>
