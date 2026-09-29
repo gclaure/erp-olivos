@@ -38,7 +38,7 @@ const canUserDispatch = computed(() => {
     if (!user) return false;
     const roles = user.roles || [];
     const hasRole = roles.includes('Almacén') || roles.includes('almacen');
-    const hasStatus = ['aprobado', 'despachado_parcial'].includes(request.value?.status);
+    const hasStatus = request.value?.status === 'aprobado';
     return hasRole && hasStatus;
 });
 
@@ -214,9 +214,8 @@ const dispatchObservations = ref({});
 const initQuantities = () => {
     if (request.value && request.value.details) {
         request.value.details.forEach(item => {
-            if (item.quantity_delivered > 0) {
-                receivedQuantities.value[item.id] = parseFloat(item.quantity_delivered.toFixed(2));
-            }
+            const delivered = typeof item.quantity_delivered === 'number' ? item.quantity_delivered : parseFloat(item.quantity_delivered || 0);
+            receivedQuantities.value[item.id] = parseFloat(delivered.toFixed(2));
             observations.value[item.id] = item.observation || '';
             dispatchObservations.value[item.id] = item.observation || '';
             
@@ -720,25 +719,23 @@ const handleReceive = () => {
     let errorMsg = '';
     
     request.value.details.forEach((item) => {
-        if (item.quantity_delivered > 0) {
-            const rawVal = receivedQuantities.value[item.id];
-            if (rawVal === undefined || isNaN(rawVal) || rawVal < 0) {
-                hasError = true;
-                errorMsg = `La cantidad recibida para ${item.product_name} no es válida y no puede ser negativa.`;
-            } else {
-                const finalQty = parseFloat(rawVal.toFixed(2));
-                payload[item.id] = finalQty;
+        const rawVal = receivedQuantities.value[item.id] !== undefined ? receivedQuantities.value[item.id] : (item.quantity_delivered || 0);
+        if (rawVal === undefined || isNaN(rawVal) || rawVal < 0) {
+            hasError = true;
+            errorMsg = `La cantidad recibida para ${item.product_name} no es válida y no puede ser negativa.`;
+        } else {
+            const finalQty = parseFloat(Number(rawVal).toFixed(2));
+            payload[item.id] = finalQty;
 
-                const isDifferent = Math.abs(finalQty - parseFloat(item.quantity_requested.toFixed(2))) >= 0.01;
-                const obs = observations.value[item.id] ? observations.value[item.id].trim() : '';
+            const isDifferent = Math.abs(finalQty - parseFloat(item.quantity_requested.toFixed(2))) >= 0.01;
+            const obs = observations.value[item.id] ? observations.value[item.id].trim() : '';
 
-                if (isDifferent) {
-                    if (!obs || obs.length < 3) {
-                        hasError = true;
-                        errorMsg = `Debe ingresar una observación/motivo de al menos 3 caracteres para la diferencia de cantidad en el producto: ${item.product_name}.`;
-                    } else {
-                        obsPayload[item.id] = obs;
-                    }
+            if (isDifferent) {
+                if (!obs || obs.length < 3) {
+                    hasError = true;
+                    errorMsg = `Debe ingresar una observación/motivo de al menos 3 caracteres para la diferencia de cantidad en el producto: ${item.product_name}.`;
+                } else {
+                    obsPayload[item.id] = obs;
                 }
             }
         }
@@ -988,6 +985,112 @@ const handleEditQuantity = (item) => {
                     const firstError = Object.values(errors)[0];
                     Swal.fire('Error', firstError, 'error');
                 }
+            });
+        }
+    });
+};
+
+const handleEditDispatchQuantity = (item) => {
+    const pendingToDeliver = Math.max(0, parseFloat(((item.quantity_requested || 0) - (item.quantity_delivered || 0)).toFixed(2)));
+    const currentVal = dispatchQuantities.value[item.id] !== undefined 
+        ? dispatchQuantities.value[item.id] 
+        : Math.min(pendingToDeliver, parseFloat(item.stock_available || 0));
+    const currentObs = dispatchObservations.value[item.id] || '';
+    const maxStock = parseFloat(item.stock_available || 0);
+
+    Swal.fire({
+        title: 'Modificar Cantidad a Despachar',
+        html: `
+            <div class="text-left space-y-3" style="font-family: inherit;">
+                <p class="text-xs text-zinc-600 dark:text-secondary-300 font-semibold">
+                    Producto: <span class="font-black text-zinc-900 dark:text-white uppercase">${item.product_name}</span>
+                </p>
+                <div class="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-zinc-50 dark:bg-secondary-900/60 border border-zinc-200 dark:border-secondary-700/60 text-center">
+                    <div>
+                        <span class="text-[9px] font-black uppercase text-zinc-400 dark:text-secondary-500">Pendiente</span>
+                        <div class="text-xs font-black font-mono text-zinc-800 dark:text-secondary-100">${pendingToDeliver.toFixed(2)} ${item.unit_of_measure}</div>
+                    </div>
+                    <div>
+                        <span class="text-[9px] font-black uppercase text-zinc-400 dark:text-secondary-500">Stock Físico</span>
+                        <div class="text-xs font-black font-mono ${maxStock > 0 ? 'text-zinc-800 dark:text-secondary-100' : 'text-rose-500'}">${maxStock.toFixed(2)} ${item.unit_of_measure}</div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1">
+                        Nueva Cantidad a Despachar (${item.unit_of_measure}) *
+                    </label>
+                    <input 
+                        id="swal-dispatch-qty" 
+                        type="number" 
+                        step="0.01" 
+                        min="0" 
+                        max="${Math.min(pendingToDeliver, maxStock)}"
+                        value="${currentVal}" 
+                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-bold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-800 dark:text-secondary-100"
+                    />
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1">
+                        Motivo / Observación del Despacho (Opcional)
+                    </label>
+                    <textarea 
+                        id="swal-dispatch-notes" 
+                        rows="2" 
+                        maxlength="500" 
+                        placeholder="Explique el motivo si se despacha cantidad parcial o en cero..." 
+                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y"
+                    >${currentObs}</textarea>
+                </div>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar Cantidad',
+        cancelButtonText: 'Cancelar',
+        customClass: {
+            popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
+            title: 'text-zinc-900 dark:text-white font-black',
+            confirmButton: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
+            cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
+        },
+        buttonsStyling: false,
+        preConfirm: () => {
+            const inputQty = document.getElementById('swal-dispatch-qty');
+            const inputNotes = document.getElementById('swal-dispatch-notes');
+            const qtyVal = parseFloat(inputQty ? inputQty.value : '0');
+
+            if (isNaN(qtyVal) || qtyVal < 0) {
+                Swal.showValidationMessage('La cantidad a despachar debe ser un número mayor o igual a 0.');
+                return false;
+            }
+            if (qtyVal > pendingToDeliver) {
+                Swal.showValidationMessage(`La cantidad a despachar (${qtyVal}) no puede superar la cantidad pendiente (${pendingToDeliver.toFixed(2)}).`);
+                return false;
+            }
+            if (qtyVal > maxStock) {
+                Swal.showValidationMessage(`La cantidad a despachar (${qtyVal}) no puede superar el stock físico disponible (${maxStock.toFixed(2)}).`);
+                return false;
+            }
+
+            return {
+                quantity: parseFloat(qtyVal.toFixed(2)),
+                observation: (inputNotes ? inputNotes.value : '').trim().slice(0, 500)
+            };
+        }
+    }).then((result) => {
+        if (result.isConfirmed && result.value) {
+            dispatchQuantities.value[item.id] = result.value.quantity;
+            if (result.value.observation) {
+                dispatchObservations.value[item.id] = result.value.observation;
+            }
+            Swal.fire({
+                icon: 'success',
+                title: 'Cantidad Actualizada',
+                text: `Se programó despachar ${result.value.quantity} ${item.unit_of_measure} de ${item.product_name}.`,
+                timer: 2000,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
             });
         }
     });
@@ -1299,7 +1402,7 @@ const prevImage = () => {
 
                 <!-- ALERTA DE STOCK INSUFICIENTE / PARCIAL -->
                 <div 
-                    v-if="!isConsumidorRole && !isFullyStocked && (request.status === 'pendiente' || request.status === 'aprobado' || request.status === 'observado' || request.status === 'parcial')"
+                    v-if="!isConsumidorRole && !isFullyStocked && (request.status === 'pendiente' || request.status === 'aprobado' || request.status === 'observado' || request.status === 'despachado_parcial' || request.status === 'parcial')"
                     class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors duration-300"
                 >
                     <div class="flex items-start gap-3">
@@ -1488,7 +1591,7 @@ const prevImage = () => {
                                     <!-- RECEPCIÓN (SI CORRESPONDE) -->
                                     <td v-if="request.status === 'despachado' || request.status === 'despachado_parcial' || request.status === 'entregado'" class="px-4 py-4 text-center">
                                         <div v-if="isConsumidorRole && (request.status === 'despachado' || request.status === 'despachado_parcial')">
-                                            <div class="flex flex-col items-center gap-1" v-if="item.quantity_delivered > 0">
+                                            <div class="flex flex-col items-center gap-1">
                                                 <div class="flex items-center justify-center gap-1">
                                                     <input 
                                                         type="number" 
@@ -1519,7 +1622,6 @@ const prevImage = () => {
                                                     </button>
                                                 </div>
                                             </div>
-                                            <span v-else class="text-zinc-400 dark:text-secondary-600">—</span>
                                         </div>
                                         <span v-else class="flex flex-col items-center justify-center gap-1">
                                             <span class="text-xs font-black font-mono" :class="item.quantity_received !== null && item.quantity_received > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-secondary-500'">
@@ -1537,14 +1639,23 @@ const prevImage = () => {
                                         </span>
                                     </td>
 
-                                    <!-- A DESPACHAR (INMUTABLE / BLOQUEADO) -->
-                                    <td v-if="canUserDispatch" class="px-4 py-4 text-center">
-                                        <div class="flex items-center justify-center gap-1.5">
-                                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black font-mono bg-zinc-100 dark:bg-secondary-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200/80 dark:border-secondary-700 shadow-inner">
-                                                {{ Number(dispatchQuantities[item.id] || 0).toFixed(2) }}
+                                    <!-- A DESPACHAR (EDITABLE PARA ALMACÉN) -->
+                                    <td v-if="canUserDispatch" class="px-4 py-4 text-center whitespace-nowrap">
+                                        <div v-if="(item.quantity_requested - item.quantity_delivered) > 0" class="inline-flex items-center justify-center gap-1.5">
+                                            <span class="text-xs font-black font-mono text-zinc-900 dark:text-secondary-100">
+                                                {{ Number(dispatchQuantities[item.id] !== undefined ? dispatchQuantities[item.id] : 0).toFixed(2) }}
                                             </span>
                                             <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase">{{ item.unit_of_measure }}</span>
+                                            <button 
+                                                type="button"
+                                                @click="handleEditDispatchQuantity(item)"
+                                                class="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors ml-0.5"
+                                                title="Editar cantidad a despachar"
+                                            >
+                                                <span class="material-symbols-outlined text-[15px]">edit</span>
+                                            </button>
                                         </div>
+                                        <span v-else class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase">Completado</span>
                                     </td>
 
                                     <!-- STOCK FÍSICO -->
@@ -1661,11 +1772,22 @@ const prevImage = () => {
                                     </span>
                                 </div>
 
-                                <div v-if="canUserDispatch" class="flex flex-col">
+                                <div v-if="canUserDispatch" class="flex flex-col items-center justify-center">
                                     <span class="text-[8px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-wider">A Despachar</span>
-                                    <span class="text-xs font-black font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">
-                                        {{ Number(dispatchQuantities[item.id] || 0).toFixed(2) }} {{ item.unit_of_measure }}
-                                    </span>
+                                    <div class="inline-flex items-center gap-1 mt-0.5">
+                                        <span class="text-xs font-black font-mono text-indigo-600 dark:text-indigo-400">
+                                            {{ Number(dispatchQuantities[item.id] !== undefined ? dispatchQuantities[item.id] : 0).toFixed(2) }} {{ item.unit_of_measure }}
+                                        </span>
+                                        <button 
+                                            v-if="(item.quantity_requested - item.quantity_delivered) > 0"
+                                            @click="handleEditDispatchQuantity(item)"
+                                            type="button"
+                                            class="p-0.5 rounded text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                                            title="Editar cantidad a despachar"
+                                        >
+                                            <span class="material-symbols-outlined text-[14px]">edit</span>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div v-if="request.status === 'despachado' || request.status === 'despachado_parcial' || request.status === 'entregado'" class="flex flex-col">
@@ -1678,7 +1800,7 @@ const prevImage = () => {
 
                             <!-- Input de Recepción Móvil si corresponde -->
                             <div 
-                                v-if="(request.status === 'despachado' || request.status === 'despachado_parcial') && isConsumidorRole && item.quantity_delivered > 0"
+                                v-if="(request.status === 'despachado' || request.status === 'despachado_parcial') && isConsumidorRole"
                                 class="pt-2 border-t border-dashed border-zinc-200 dark:border-secondary-700 space-y-2"
                             >
                                 <div class="flex items-center justify-between gap-2">
