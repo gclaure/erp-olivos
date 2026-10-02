@@ -121,8 +121,14 @@ readonly class PurchaseService
 
         // 5. Notificar a administradores (Super Admins + usuarios de la sucursal)
         if ($notify) {
-            $users = User::where('is_super_admin', true)
-                ->orWhere('branch_id', $purchase->warehouse->branch_id)
+            $users = User::where(function ($query) use ($purchase) {
+                    $query->where('is_super_admin', true)
+                        ->orWhere('branch_id', $purchase->warehouse->branch_id);
+                })
+                ->where('is_active', true)
+                ->whereDoesntHave('roles', function ($query) {
+                    $query->whereIn('name', ['Consumidor', 'consumidor']);
+                })
                 ->get();
             if ($users->isNotEmpty()) {
                 try {

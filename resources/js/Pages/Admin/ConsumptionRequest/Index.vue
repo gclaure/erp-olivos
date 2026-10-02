@@ -197,30 +197,33 @@ const subscribeToBranch = (branchId) => {
                 if (!exists) {
                     localRequests.value.unshift(e.request);
 
-                    // Badge en pestaña y favicon
-                    nuevasSolicitudes.value++;
-                    actualizarBadgeTab(nuevasSolicitudes.value);
-                    actualizarFaviconBadge(nuevasSolicitudes.value);
+                    // El rol Consumidor solo debe recibir alertas de sus propias solicitudes, no de solicitudes ajenas
+                    if (!isConsumidor.value) {
+                        // Badge en pestaña y favicon
+                        nuevasSolicitudes.value++;
+                        actualizarBadgeTab(nuevasSolicitudes.value);
+                        actualizarFaviconBadge(nuevasSolicitudes.value);
 
-                    // Toast en pantalla
-                    Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        icon: 'info',
-                        title: `Nueva solicitud de consumo #${e.request.formatted_number}`,
-                        text: `Solicitado por ${e.request.requested_by}`,
-                        showConfirmButton: false,
-                        timer: 4500,
-                        timerProgressBar: true
-                    });
+                        // Toast en pantalla
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'info',
+                            title: `Nueva solicitud de consumo #${e.request.formatted_number}`,
+                            text: `Solicitado por ${e.request.requested_by}`,
+                            showConfirmButton: false,
+                            timer: 4500,
+                            timerProgressBar: true
+                        });
 
-                    // Notificación nativa del sistema operativo con sonido
-                    mostrarNotificacionBrowser(
-                        `📋 Solicitud #${e.request.formatted_number}`,
-                        `Área: ${e.request.requested_by}`,
-                        route('admin.consumption-requests.index'),
-                        true
-                    );
+                        // Notificación nativa del sistema operativo con sonido
+                        mostrarNotificacionBrowser(
+                            `📋 Solicitud #${e.request.formatted_number}`,
+                            `Área: ${e.request.requested_by}`,
+                            route('admin.consumption-requests.index'),
+                            true
+                        );
+                    }
                 }
             })
             .listen('.consumption-request.updated', (e) => {
@@ -238,12 +241,25 @@ const subscribeToBranch = (branchId) => {
                         actualizarBadgeTab(nuevasSolicitudes.value);
                         actualizarFaviconBadge(nuevasSolicitudes.value);
 
+                        const actionTitle = computed(() => {
+                            switch (e.request.status) {
+                                case 'aprobado': return `Solicitud #${e.request.formatted_number} Aprobada`;
+                                case 'cancelado': return `Solicitud #${e.request.formatted_number} Cancelada`;
+                                case 'despachado':
+                                case 'parcial':
+                                case 'entregado': return `Solicitud #${e.request.formatted_number} Despachada`;
+                                default: return `Solicitud #${e.request.formatted_number} Actualizada`;
+                            }
+                        }).value;
+
+                        const toastIcon = e.request.status === 'cancelado' ? 'warning' : 'success';
+
                         // Toast en pantalla
                         Swal.fire({
                             toast: true,
                             position: 'top-end',
-                            icon: 'success',
-                            title: `Solicitud #${e.request.formatted_number} despachada`,
+                            icon: toastIcon,
+                            title: actionTitle,
                             text: `Estado: ${getStatusLabel(e.request.status).toUpperCase()}`,
                             showConfirmButton: false,
                             timer: 4500,
@@ -252,7 +268,7 @@ const subscribeToBranch = (branchId) => {
 
                         // Notificación nativa del navegador con sonido
                         mostrarNotificacionBrowser(
-                            `📦 Solicitud #${e.request.formatted_number} Actualizada`,
+                            `📦 ${actionTitle}`,
                             `Estado: ${getStatusLabel(e.request.status).toUpperCase()}`,
                             route('admin.consumption-requests.index'),
                             true

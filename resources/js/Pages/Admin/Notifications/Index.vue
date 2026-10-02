@@ -93,7 +93,12 @@ const getIcon = (type) => {
         case 'purchase_received': return 'shopping_cart';
         case 'loss_warning': return 'bar_chart';
         case 'inventory_discrepancy': return 'settings';
-        case 'transfer_discrepancy': return 'sync_alt';
+        case 'new_consumption_request': return 'assignment';
+        case 'consumption_request_approved': return 'task_alt';
+        case 'consumption_request_dispatched': return 'local_shipping';
+        case 'consumption_request_received': return 'check_circle';
+        case 'consumption_request_cancelled': return 'cancel';
+        case 'consumption_request_modified': return 'edit_note';
         default: return 'notifications';
     }
 };
@@ -106,6 +111,12 @@ const getTitle = (type) => {
         case 'loss_warning': return 'ALERTA DE PÉRDIDA';
         case 'inventory_discrepancy': return 'Ajuste de Inventario';
         case 'transfer_discrepancy': return 'DISCREPANCIA TRANSFERENCIA';
+        case 'new_consumption_request': return 'Solicitud de Consumo';
+        case 'consumption_request_approved': return 'Solicitud Aprobada';
+        case 'consumption_request_dispatched': return 'Despacho de Consumo';
+        case 'consumption_request_received': return 'Recepción de Consumo';
+        case 'consumption_request_cancelled': return 'Solicitud Cancelada';
+        case 'consumption_request_modified': return 'Solicitud Modificada';
         default: return 'Mensaje del Sistema';
     }
 };
@@ -117,6 +128,12 @@ const getTitleClass = (type) => {
         case 'loss_warning': return 'text-purple-600 dark:text-purple-500 font-black';
         case 'inventory_discrepancy': return 'text-orange-600 dark:text-orange-500';
         case 'transfer_discrepancy': return 'text-red-600 dark:text-red-500 font-bold';
+        case 'new_consumption_request': return 'text-indigo-600 dark:text-indigo-500 font-semibold';
+        case 'consumption_request_approved': return 'text-teal-600 dark:text-teal-500 font-semibold';
+        case 'consumption_request_dispatched': return 'text-emerald-600 dark:text-emerald-500 font-semibold';
+        case 'consumption_request_received': return 'text-blue-600 dark:text-blue-500 font-semibold';
+        case 'consumption_request_cancelled': return 'text-rose-600 dark:text-rose-500 font-semibold';
+        case 'consumption_request_modified': return 'text-amber-600 dark:text-amber-500 font-semibold';
         default: return '';
     }
 };
@@ -130,6 +147,12 @@ const getIconContainerClass = (type) => {
         case 'loss_warning': return base + 'bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-500 border-purple-200 dark:border-purple-500/20';
         case 'inventory_discrepancy': return base + 'bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-500 border-orange-200 dark:border-orange-500/20';
         case 'transfer_discrepancy': return base + 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-500 border-red-200 dark:border-red-500/20 animate-pulse';
+        case 'new_consumption_request': return base + 'bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-500 border-indigo-200 dark:border-indigo-500/20';
+        case 'consumption_request_approved': return base + 'bg-teal-100 dark:bg-teal-500/10 text-teal-600 dark:text-teal-500 border-teal-200 dark:border-teal-500/20';
+        case 'consumption_request_dispatched': return base + 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border-emerald-200 dark:border-emerald-500/20';
+        case 'consumption_request_received': return base + 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-500 border-blue-200 dark:border-blue-500/20';
+        case 'consumption_request_cancelled': return base + 'bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-500 border-rose-200 dark:border-rose-500/20';
+        case 'consumption_request_modified': return base + 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-200 dark:border-amber-500/20';
         default: return base + 'bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-500 border-indigo-200 dark:border-indigo-500/20';
     }
 };

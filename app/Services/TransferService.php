@@ -249,8 +249,14 @@ class TransferService
 
             // Notify if discrepancy exists
             if ($hasDiscrepancy) {
-                $users = User::where('is_super_admin', true)
-                    ->orWhere('branch_id', $transfer->destination_branch_id)
+                $users = User::where(function ($query) use ($transfer) {
+                        $query->where('is_super_admin', true)
+                            ->orWhere('branch_id', $transfer->destination_branch_id);
+                    })
+                    ->where('is_active', true)
+                    ->whereDoesntHave('roles', function ($query) {
+                        $query->whereIn('name', ['Consumidor', 'consumidor']);
+                    })
                     ->get();
                 if ($users->isNotEmpty()) {
                     Notification::send($users, new TransferDiscrepancyNotification($transfer->load(['originWarehouse', 'destinationWarehouse.branch'])));

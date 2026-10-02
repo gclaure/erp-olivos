@@ -56,8 +56,14 @@ class MovementService
         });
 
         // Notificar a administradores (Super Admins + usuarios de la sucursal)
-        $users = User::where('is_super_admin', true)
-            ->orWhere('branch_id', $movement->warehouse->branch_id)
+        $users = User::where(function ($query) use ($movement) {
+                $query->where('is_super_admin', true)
+                    ->orWhere('branch_id', $movement->warehouse->branch_id);
+            })
+            ->where('is_active', true)
+            ->whereDoesntHave('roles', function ($query) {
+                $query->whereIn('name', ['Consumidor', 'consumidor']);
+            })
             ->get();
         if ($users->isNotEmpty()) {
             Notification::send($users, new InventoryDiscrepancyNotification($movement->load(['warehouse.branch', 'user'])));
