@@ -10,57 +10,84 @@ Route::redirect('dashboard', '/admin')->name('dashboard');
 
 Route::get('/manifest.json', function () {
     $company = CompanyFacade::getCompany();
-    $name = $company?->name ?? config('app.name', 'Tu Inventario');
+    $name = $company?->name ?? 'Olivos Catering';
     
-    // Logo y Favicon dinámicos
-    $logoPath = $company?->logo_path ?? 'logo.jpeg';
-    $logoUrl = asset('storage/' . $logoPath);
-    if (!str_starts_with($logoPath, 'http') && !file_exists(public_path('storage/' . $logoPath))) {
-        $logoUrl = asset('logo.jpeg');
-    }
-    $logoType = str_ends_with(strtolower($logoUrl), '.png') ? 'image/png' : 'image/jpeg';
-    
-    $faviconPath = 'storage/company/favicon.png';
-    $faviconUrl = file_exists(public_path($faviconPath)) ? asset($faviconPath) : asset('favicon.ico');
-    $faviconType = str_ends_with(strtolower($faviconUrl), '.svg') ? 'image/svg+xml' : (str_ends_with(strtolower($faviconUrl), '.png') ? 'image/png' : 'image/x-icon');
+    // Iconos PWA dedicados de alta resolución
+    $icon192 = file_exists(public_path('icons/icon-192.png')) ? asset('icons/icon-192.png') : asset('img/logo-light.png');
+    $icon512 = file_exists(public_path('icons/icon-512.png')) ? asset('icons/icon-512.png') : asset('img/logo-light.png');
+    $maskable192 = file_exists(public_path('icons/icon-maskable-192.png')) ? asset('icons/icon-maskable-192.png') : $icon192;
+    $maskable512 = file_exists(public_path('icons/icon-maskable-512.png')) ? asset('icons/icon-maskable-512.png') : $icon512;
 
     return response()->json([
-        "name" => "Sistema de Inventario - " . $name,
+        "id" => "/admin",
+        "name" => $name,
         "short_name" => $name,
-        "description" => "Sistema profesional de gestión de inventarios y ventas.",
-        "start_url" => "/admin",
+        "description" => "Sistema de gestión de inventarios y ventas de " . $name . ".",
+        "start_url" => "/admin?source=pwa",
         "scope" => "/",
         "display" => "standalone",
-        "orientation" => "portrait",
-        "background_color" => "#ffffff",
-        "theme_color" => "#4f46e5",
+        "orientation" => "any",
+        "background_color" => "#FAF9F5",
+        "theme_color" => "#3F6B20",
+        "categories" => ["business", "productivity", "utilities"],
         "icons" => [
             [
-                "src" => $logoUrl,
+                "src" => $icon192,
                 "sizes" => "192x192",
-                "type" => $logoType,
+                "type" => "image/png",
                 "purpose" => "any"
             ],
             [
-                "src" => $logoUrl,
+                "src" => $icon512,
                 "sizes" => "512x512",
-                "type" => $logoType,
+                "type" => "image/png",
                 "purpose" => "any"
             ],
             [
-                "src" => $faviconUrl,
+                "src" => $maskable192,
                 "sizes" => "192x192",
-                "type" => $faviconType,
-                "purpose" => "any"
+                "type" => "image/png",
+                "purpose" => "maskable"
             ],
             [
-                "src" => $faviconUrl,
+                "src" => $maskable512,
                 "sizes" => "512x512",
-                "type" => $faviconType,
+                "type" => "image/png",
                 "purpose" => "maskable"
             ]
+        ],
+        "shortcuts" => [
+            [
+                "name" => "Punto de Venta (POS)",
+                "short_name" => "POS",
+                "description" => "Acceso directo al terminal de ventas",
+                "url" => "/admin/pos?source=shortcut",
+                "icons" => [
+                    [
+                        "src" => $icon192,
+                        "sizes" => "192x192",
+                        "type" => "image/png"
+                    ]
+                ]
+            ],
+            [
+                "name" => "Catálogo de Productos",
+                "short_name" => "Productos",
+                "description" => "Gestión y catálogo de inventario",
+                "url" => "/admin/products?source=shortcut",
+                "icons" => [
+                    [
+                        "src" => $icon192,
+                        "sizes" => "192x192",
+                        "type" => "image/png"
+                    ]
+                ]
+            ]
         ]
-    ], 200, ['Content-Type' => 'application/manifest+json']);
+    ], 200, [
+        'Content-Type' => 'application/manifest+json',
+        'Cache-Control' => 'no-cache, private'
+    ]);
 });
 
 

@@ -1,60 +1,193 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sin Conexión - Inventario</title>
+    <title>Sin Conexión - Sistema de Inventario</title>
     <style>
+        :root {
+            --bg-page: #FAF9F5;
+            --bg-card: #ffffff;
+            --text-title: #080808;
+            --text-muted: #6B6B67;
+            --border-color: #E5E2D9;
+            --primary-btn: #3F6B20;
+            --primary-btn-hover: #2F5118;
+            --btn-text: #ffffff;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-page: #151812;
+                --bg-card: #262B20;
+                --text-title: #F1EDE2;
+                --text-muted: #8A9480;
+                --border-color: #3C4335;
+                --primary-btn: #73AC32;
+                --primary-btn-hover: #8DBB52;
+                --btn-text: #ffffff;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-title);
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background: #f4f4f5;
-            color: #18181b;
-            text-align: center;
+            min-height: 100vh;
+            padding: 1.5rem;
         }
 
-        .card {
-            background: white;
-            padding: 2rem;
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            max-width: 400px;
+        .offline-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            padding: 2.5rem 2rem;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .icon-container {
+            width: 72px;
+            height: 72px;
+            border-radius: 1.25rem;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--primary-btn);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+        }
+
+        .icon-container svg {
+            width: 36px;
+            height: 36px;
         }
 
         h1 {
-            color: #4f46e5;
-            margin-bottom: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
         }
 
         p {
-            color: #71717a;
-            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin-bottom: 2rem;
         }
 
-        button {
-            background: #4f46e5;
-            color: white;
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .btn-retry {
+            background-color: var(--primary-btn);
+            color: var(--btn-text);
             border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            font-weight: bold;
+            padding: 0.875rem 1.5rem;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
             cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .btn-retry:hover {
+            background-color: var(--primary-btn-hover);
+            transform: translateY(-1px);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #ef4444;
+            margin-top: 1rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #ef4444;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
         }
     </style>
 </head>
-
 <body>
-    <div class="card">
-        <h1>Sin conexión</h1>
-        <p>Parece que no tienes internet en este momento. La aplicación necesita conexión para sincronizar los datos del
-            inventario.</p>
-        <button onclick="window.location.reload()">Reintentar conexión</button>
-    </div>
-</body>
+    <div class="offline-card">
+        <div class="icon-container">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.5 10.5a5 5 0 017.07 0M6.34 6.34a10 10 0 0114.14 0M1.41 1.41a15 15 0 0121.21 0M12 18h.01" />
+            </svg>
+        </div>
+        <h1>Sin conexión a internet</h1>
+        <p>No fue posible conectar con el servidor del sistema. Comprueba tu conexión de red Wi-Fi o datos móviles para continuar operando.</p>
+        
+        <div class="actions">
+            <button class="btn-retry" onclick="retryConnection(this)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                Reintentar conexión
+            </button>
+        </div>
 
+        <div class="status-badge">
+            <span class="status-dot"></span>
+            Modo fuera de línea
+        </div>
+    </div>
+
+    <script>
+        function retryConnection(btn) {
+            btn.innerText = 'Verificando...';
+            btn.style.opacity = '0.7';
+            btn.disabled = true;
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+        }
+
+        // Si la conexión se recupera sola en segundo plano, recargar de inmediato
+        window.addEventListener('online', () => {
+            window.location.reload();
+        });
+    </script>
+</body>
 </html>

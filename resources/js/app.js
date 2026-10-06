@@ -7,8 +7,12 @@ import { createInertiaApp, Link, Head } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { ZiggyVue } from 'ziggy-js';
 import { VueQueryPlugin } from '@tanstack/vue-query';
+import { usePwa } from './Composables/usePwa';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Tu Inventario';
+
+// Inicializar Service Worker PWA
+usePwa().registerServiceWorker();
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

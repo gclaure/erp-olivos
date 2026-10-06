@@ -3,6 +3,19 @@ import { ref, computed } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import NotificationBell from '@/Components/Admin/NotificationBell.vue';
 import Swal from 'sweetalert2';
+import { usePwa } from '@/Composables/usePwa';
+
+const { isOnline, canInstall, installApp } = usePwa();
+
+const handleInstallPwa = async () => {
+    const installed = await installApp();
+    if (installed) {
+        Toast.fire({
+            icon: 'success',
+            title: '¡Aplicación instalada con éxito!'
+        });
+    }
+};
 
 const Toast = Swal.mixin({
     toast: true,
@@ -174,6 +187,23 @@ const toggleDarkMode = () => emit('toggle-dark-mode');
                      class="hidden md:block absolute -bottom-10 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[10px] py-1 px-2 rounded shadow-xl animate-bounce">
                     Link copiado
                 </div>
+            </button>
+
+            <!-- Offline Indicator -->
+            <div v-if="!isOnline" 
+                 class="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-lg border border-rose-200 dark:border-rose-900/40 text-xs font-bold animate-pulse"
+                 title="Modo fuera de línea: sin conexión a internet">
+                <span class="material-symbols-outlined text-sm">cloud_off</span>
+                <span class="hidden sm:inline">Sin Conexión</span>
+            </div>
+
+            <!-- PWA Install Button -->
+            <button v-if="canInstall"
+                    @click="handleInstallPwa"
+                    class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-[#F4F9EC] dark:bg-[#262B20] text-[#3F6B20] dark:text-[#A8C97A] rounded-lg border border-[#D1E5B3] dark:border-[#3C4335] hover:bg-[#E8F2D9] dark:hover:bg-[#3F6B20]/40 transition-all font-bold text-xs shadow-sm hover:scale-105"
+                    title="Instalar aplicación en este dispositivo">
+                <span class="material-symbols-outlined text-[18px]">install_mobile</span>
+                <span class="hidden md:inline">Instalar App</span>
             </button>
 
             <!-- Theme Toggle -->
