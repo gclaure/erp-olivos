@@ -51,6 +51,25 @@ class ProductResource extends JsonResource
             'warehouses' => $this->whenLoaded('stocks', fn () => 
                 $this->stocks->map(fn($s) => $s->warehouse->name ?? null)->filter()->unique()->values()->all()
             ),
+            'stocks' => $this->whenLoaded('stocks', fn () => 
+                $this->stocks->map(fn($s) => [
+                    'id' => $s->id,
+                    'warehouse_id' => $s->warehouse_id,
+                    'warehouse_name' => $s->warehouse->name ?? 'Almacén',
+                    'quantity' => (float) $s->quantity,
+                    'average_cost' => (float) $s->average_cost,
+                    'inventory_value' => (float) $s->inventory_value,
+                ])
+            ),
+            'average_cost' => $this->whenLoaded('stocks', function () {
+                $totalQty = $this->stocks->sum(fn ($s) => (float) $s->quantity);
+                $totalVal = $this->stocks->sum(fn ($s) => (float) $s->inventory_value);
+                if ($totalQty > 0) {
+                    return round($totalVal / $totalQty, 4);
+                }
+                $firstStockWithCost = $this->stocks->first(fn ($s) => (float) $s->average_cost > 0);
+                return $firstStockWithCost ? (float) $firstStockWithCost->average_cost : 0.0;
+            }),
             'category_ids' => $this->whenLoaded('categories', fn() => $this->categories->pluck('id')),
         ];
     }

@@ -51,6 +51,7 @@ Route::post('products/import-preview', [\App\Http\Controllers\Admin\ProductContr
 Route::get('products/generate-sku', [\App\Http\Controllers\Admin\ProductController::class, 'generateSku'])->name('products.generate-sku');
 Route::post('products/upload-image', [\App\Http\Controllers\Admin\ProductController::class, 'uploadImage'])->name('products.upload-image');
 Route::post('products/process-image-url', [\App\Http\Controllers\Admin\ProductController::class, 'processImageUrl'])->name('products.process-image-url');
+Route::post('products/{product}/adjust-cost', [\App\Http\Controllers\Admin\ProductController::class, 'adjustCost'])->name('products.adjust-cost');
 
 // Almacenes
 Route::resource('warehouses', \App\Http\Controllers\Admin\WarehouseController::class)

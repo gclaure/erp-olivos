@@ -1,10 +1,11 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { ref, watch, computed, onMounted } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import BaseSelect from '@/Components/Admin/BaseSelect.vue';
 import ProductModal from './Partials/ProductModal.vue';
 import ImportModal from './Partials/ImportModal.vue';
+import AdjustCostModal from './Partials/AdjustCostModal.vue';
 import debounce from 'lodash/debounce';
 import Swal from 'sweetalert2';
 
@@ -32,7 +33,23 @@ const setTypeFilter = (newType) => {
 
 const showModal = ref(false);
 const showImportModal = ref(false);
+const showAdjustCostModal = ref(false);
 const editingProduct = ref(null);
+const adjustingCostProduct = ref(null);
+
+const page = usePage();
+const isAdmin = computed(() => {
+    const user = page.props.auth?.user;
+    if (!user) return false;
+    if (user.is_super_admin) return true;
+    const roles = user.roles || [];
+    return roles.some(r => ['Admin', 'admin', 'Administrador', 'administrador', 'Super Admin', 'super-admin'].includes(typeof r === 'string' ? r : r.name));
+});
+
+const openAdjustCostModal = (product) => {
+    adjustingCostProduct.value = product;
+    showAdjustCostModal.value = true;
+};
 
 const showImagePreview = ref(false);
 const previewImages = ref([]);
@@ -407,6 +424,12 @@ const downloadTemplate = () => {
                             </td>
                             <td class="px-6 py-4 text-right whitespace-nowrap align-middle sticky right-0 z-10 bg-white dark:bg-secondary-800 group-hover:bg-zinc-50 dark:group-hover:bg-secondary-700 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.06)] dark:shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.3)] transition-colors">
                                 <div class="flex items-center justify-end gap-1">
+                                    <button v-if="isAdmin && product.type !== 'insumo'"
+                                            @click="openAdjustCostModal(product)"
+                                            class="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-xl transition-all active:scale-90"
+                                            title="Ajustar Costo Unitario">
+                                        <span class="material-symbols-outlined text-lg">price_change</span>
+                                    </button>
                                     <button @click="openEditModal(product)"
                                             class="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl transition-all active:scale-90"
                                             title="Editar">
@@ -498,10 +521,22 @@ const downloadTemplate = () => {
                                 </span>
                             </template>
                         </div>
+                        <div v-if="isAdmin && product.type !== 'insumo'" class="flex justify-between items-center">
+                            <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Costo Unitario</span>
+                            <span class="text-xs font-mono font-bold text-zinc-700 dark:text-zinc-300">
+                                {{ Number(product.average_cost || 0).toFixed(4) }}
+                            </span>
+                        </div>
                     </div>
 
                     <!-- Action Row -->
                     <div class="flex justify-end items-center gap-3 pt-2">
+                        <button v-if="isAdmin && product.type !== 'insumo'"
+                                @click="openAdjustCostModal(product)"
+                                class="w-10 h-10 flex items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 active:scale-90 transition-all border border-emerald-100 dark:border-emerald-800/20"
+                                title="Ajustar Costo Unitario">
+                            <span class="material-symbols-outlined text-lg">price_change</span>
+                        </button>
                         <button @click="openEditModal(product)"
                                 class="w-10 h-10 flex items-center justify-center rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 active:scale-90 transition-all border border-amber-100 dark:border-amber-800/20"
                                 title="Editar">
@@ -555,6 +590,12 @@ const downloadTemplate = () => {
                      :warehouses="warehouses" 
                      :providers="providers"
                      @close="showImportModal = false" />
+
+        <AdjustCostModal :show="showAdjustCostModal" 
+                         :product="adjustingCostProduct" 
+                         :warehouses="warehouses" 
+                         @close="showAdjustCostModal = false; adjustingCostProduct = null" 
+                         @success="showAdjustCostModal = false; adjustingCostProduct = null" />
 
         <!-- Image Gallery Lightbox -->
         <div v-if="showImagePreview" 

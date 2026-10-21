@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\AdjustProductCostRequest;
 use App\Http\Requests\Admin\StoreProductRequest;
 use App\Http\Requests\Admin\UpdateProductRequest;
 use App\Http\Resources\ProductResource;
+use App\Services\ProductCostAdjustmentService;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\UnitOfMeasure;
@@ -346,5 +348,19 @@ class ProductController extends Controller
         }
     }
 
+    public function adjustCost(
+        AdjustProductCostRequest $request,
+        Product $product,
+        ProductCostAdjustmentService $costAdjustmentService
+    ): RedirectResponse {
+        $costAdjustmentService->adjustCost(
+            product: $product,
+            newUnitCost: $request->validated('unit_cost'),
+            warehouseId: $request->validated('warehouse_id'),
+            reason: $request->validated('reason'),
+            userId: $request->user()?->id
+        );
 
+        return back()->with('success', "Costo unitario de '{$product->name}' actualizado correctamente.");
+    }
 }
