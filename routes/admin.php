@@ -94,8 +94,12 @@ Route::group(['prefix' => 'purchase-orders', 'as' => 'purchase-orders.'], functi
 // Solicitudes de Consumo Interno
 Route::group(['prefix' => 'consumption-requests', 'as' => 'consumption-requests.'], function() {
     Route::get('/', [ConsumptionRequestController::class, 'index'])->name('index');
+    Route::get('/export-excel', [ConsumptionRequestController::class, 'exportExcel'])->name('export-excel');
+    Route::get('/export-pdf', [ConsumptionRequestController::class, 'exportPdf'])->name('export-pdf');
     Route::get('/create', [ConsumptionRequestController::class, 'create'])->name('create');
     Route::post('/', [ConsumptionRequestController::class, 'store'])->name('store');
+    Route::get('/{consumption_request}/export-excel', [ConsumptionRequestController::class, 'exportSingleExcel'])->name('export-single-excel');
+    Route::get('/{consumption_request}/export-pdf', [ConsumptionRequestController::class, 'exportSinglePdf'])->name('export-single-pdf');
     Route::get('/{consumption_request}/print', [ConsumptionRequestController::class, 'print'])->name('print');
     Route::get('/{consumption_request}/edit', [ConsumptionRequestController::class, 'edit'])->name('edit');
     Route::put('/{consumption_request}', [ConsumptionRequestController::class, 'update'])->name('update');

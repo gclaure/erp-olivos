@@ -17,11 +17,16 @@ use App\Notifications\NuevaSolicitudConsumoNotification;
 use App\Notifications\SolicitudConsumoCanceladaNotification;
 use App\Notifications\SolicitudConsumoModificadaNotification;
 use App\Events\NuevaNotificacion;
+use App\Exports\ConsumptionRequestsGeneralExport;
+use App\Exports\ConsumptionRequestSingleExport;
+use App\Facades\CompanyFacade;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Exception;
 
 class ConsumptionRequestController extends Controller
@@ -35,11 +40,16 @@ class ConsumptionRequestController extends Controller
     {
         $search = $request->get('search');
         $status = $request->get('status');
+        $area = $request->get('area');
         $startDate = $request->get('start_date');
         $endDate = $request->get('end_date');
         $order = $request->get('order', 'desc');
+        $perPageInput = (int) $request->input('per_page', 10);
+        $perPage = in_array($perPageInput, [10, 25, 50, 100], true) ? $perPageInput : 10;
 
         $user = $request->user();
+        $isAdmin = $this->checkIsAdmin($user);
+
         $query = ConsumptionRequest::query()
             ->with([
                 'warehouse', 
@@ -51,7 +61,7 @@ class ConsumptionRequestController extends Controller
             ->orderBy('number', $order);
 
         // Si es consumidor, solo ve sus propias solicitudes
-        if ($user && $user->hasRole(['Consumidor', 'consumidor']) && !$user->is_super_admin && !$user->hasRole(['Admin', 'admin', 'Administrador', 'administrador'])) {
+        if ($user && $user->hasRole(['Consumidor', 'consumidor']) && !$isAdmin) {
             $query->where('user_id', $user->id);
         }
 
@@ -72,6 +82,10 @@ class ConsumptionRequestController extends Controller
             $query->where('status', $status);
         }
 
+        if ($area) {
+            $query->where('requested_by', $area);
+        }
+
         if ($startDate) {
             $query->whereDate('date', '>=', $startDate);
         }
@@ -80,16 +94,30 @@ class ConsumptionRequestController extends Controller
             $query->whereDate('date', '<=', $endDate);
         }
 
-        $requests = $query->paginate(20)->withQueryString();
+        $requests = $query->paginate($perPage)->withQueryString();
+
+        $defaultAreas = ['Cocina', 'Pastelería', 'Panadería', 'Eventos', 'Producción', 'Despacho'];
+        $dbAreas = ConsumptionRequest::query()
+            ->whereNotNull('requested_by')
+            ->where('requested_by', '!=', '')
+            ->distinct()
+            ->pluck('requested_by')
+            ->all();
+        $areas = array_values(array_unique(array_merge($defaultAreas, $dbAreas)));
+        sort($areas);
 
         return Inertia::render('Admin/ConsumptionRequest/Index', [
             'requests' => ConsumptionRequestResource::collection($requests),
+            'areas' => $areas,
+            'isAdmin' => $isAdmin,
             'filters' => [
                 'search' => $search,
                 'status' => $status,
+                'area' => $area,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'order' => $order,
+                'per_page' => $perPage,
             ]
         ]);
     }
@@ -898,6 +926,413 @@ class ConsumptionRequestController extends Controller
         }
 
         return $pdf->stream("Solicitud-Consumo-{$consumptionRequest->formatted_number}.pdf");
+    }
+
+    /**
+     * Export general report of consumption requests in Excel (.xlsx).
+     */
+    public function exportExcel(Request $request): BinaryFileResponse
+    {
+        $this->ensureAdminAccess($request->user());
+
+        $search = $request->get('search');
+        $status = $request->get('status');
+        $area = $request->get('area');
+        $startDate = $request->get('start_date');
+        $endDate = $request->get('end_date');
+
+        $filename = 'Reporte-General-Solicitudes-Consumo-' . now()->format('Y-m-d-His') . '.xlsx';
+
+        return Excel::download(
+            new ConsumptionRequestsGeneralExport($search, $status, $area, $startDate, $endDate),
+            $filename
+        );
+    }
+
+    private const MAX_PDF_BATCH_RECORDS = 5000;
+    private const PDF_CHUNK_SIZE = 500;
+    private const PDF_RENDER_BATCH_SIZE = 30;
+
+    /**
+     * Export general report of consumption requests in PDF (processed in batches, max 5,000 records).
+     */
+    public function exportPdf(Request $request): \Symfony\Component\HttpFoundation\Response
+    {
+        $this->ensureAdminAccess($request->user());
+
+        $search = $request->get('search');
+        $status = $request->get('status');
+        $area = $request->get('area');
+        $startDate = $request->get('start_date');
+        $endDate = $request->get('end_date');
+
+        $baseQuery = ConsumptionRequestDetail::query()
+            ->whereHas('consumptionRequest', function ($q) use ($search, $status, $area, $startDate, $endDate): void {
+                if ($search) {
+                    $q->where(function ($sub) use ($search): void {
+                        $sub->where('requested_by', 'ilike', "%{$search}%")
+                            ->orWhere('notes', 'ilike', "%{$search}%");
+                        if (is_numeric($search)) {
+                            $sub->orWhere('number', (int) $search);
+                        }
+                    });
+                }
+
+                if ($status) {
+                    $q->where('status', $status);
+                }
+
+                if ($area) {
+                    $q->where('requested_by', $area);
+                }
+
+                if ($startDate) {
+                    $q->whereDate('date', '>=', $startDate);
+                }
+
+                if ($endDate) {
+                    $q->whereDate('date', '<=', $endDate);
+                }
+            });
+
+        $totalCount = (clone $baseQuery)->count();
+        $maxLimit = self::MAX_PDF_BATCH_RECORDS;
+
+        if ($request->boolean('check_only')) {
+            if ($totalCount > $maxLimit) {
+                return response()->json([
+                    'allowed' => false,
+                    'total' => $totalCount,
+                    'max' => $maxLimit,
+                    'message' => "El reporte PDF General procesa como máximo " . number_format($maxLimit) . " registros por lote (se encontraron " . number_format($totalCount) . " registros). Por favor, filtre por Área Solicitante, Estado o Rango de Fechas solo lo necesario.",
+                ], 422);
+            }
+
+            return response()->json([
+                'allowed' => true,
+                'total' => $totalCount,
+                'max' => $maxLimit,
+            ]);
+        }
+
+        if ($totalCount > $maxLimit) {
+            $limitMessage = "El reporte PDF General procesa como máximo " . number_format($maxLimit) . " registros por lote (se encontraron " . number_format($totalCount) . " registros). Por favor, filtre por Área Solicitante, Estado o Rango de Fechas solo lo necesario.";
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'allowed' => false,
+                    'total' => $totalCount,
+                    'max' => $maxLimit,
+                    'message' => $limitMessage,
+                ], 422);
+            }
+
+            return redirect()
+                ->route('admin.consumption-requests.index', array_filter([
+                    'search' => $search,
+                    'status' => $status,
+                    'area' => $area,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                ]))
+                ->withErrors(['error' => $limitMessage]);
+        }
+
+        $query = $baseQuery
+            ->select([
+                'consumption_request_details.id',
+                'consumption_request_details.consumption_request_id',
+                'consumption_request_details.product_id',
+                'consumption_request_details.quantity_requested',
+                'consumption_request_details.quantity_delivered',
+                'consumption_request_details.created_at',
+            ])
+            ->addSelect([
+                'stock_avg_cost' => \App\Models\Stock::withoutGlobalScopes()
+                    ->select('average_cost')
+                    ->whereColumn('stocks.product_id', 'consumption_request_details.product_id')
+                    ->whereIn('stocks.warehouse_id', function ($sub): void {
+                        $sub->select('warehouse_id')
+                            ->from('consumption_requests')
+                            ->whereColumn('consumption_requests.id', 'consumption_request_details.consumption_request_id');
+                    })
+                    ->limit(1),
+            ])
+            ->with([
+                'consumptionRequest:id,number,date,created_at,requested_by,user_id,status',
+                'consumptionRequest.user:id,name',
+                'product:id,code,name,price,unit_of_measure_id',
+                'product.unitOfMeasure:id,name,abbreviation',
+            ])
+            ->orderByDesc('consumption_request_details.created_at')
+            ->orderByDesc('consumption_request_details.id');
+
+        $records = [];
+        $uniqueRequestIds = [];
+        $totalItems = 0;
+        $totalRequested = 0.0;
+        $totalDelivered = 0.0;
+        $totalCost = 0.0;
+
+        $query->chunk(self::PDF_CHUNK_SIZE, function ($batch) use (
+            &$records,
+            &$uniqueRequestIds,
+            &$totalItems,
+            &$totalRequested,
+            &$totalDelivered,
+            &$totalCost
+        ): void {
+            foreach ($batch as $detail) {
+                $req = $detail->consumptionRequest;
+                $product = $detail->product;
+
+                $price = (float) ($product?->price ?? 0);
+                $unitCost = $price > 0 ? $price : (float) ($detail->stock_avg_cost ?? 0);
+                $qtyReq = (float) ($detail->quantity_requested ?? 0);
+                $qtyDel = (float) ($detail->quantity_delivered ?? 0);
+
+                if ($detail->consumption_request_id) {
+                    $uniqueRequestIds[$detail->consumption_request_id] = true;
+                }
+                $totalItems++;
+                $totalRequested += $qtyReq;
+                $totalDelivered += $qtyDel;
+                $totalCost += $unitCost;
+
+                $records[] = (object) [
+                    'formatted_number' => $req?->formatted_number ?? 'S/N',
+                    'date_formatted' => $this->formatSpanishDate($req?->date ?? $req?->created_at),
+                    'time_formatted' => $req?->created_at ? $req->created_at->format('H:i') . ' hrs' : '',
+                    'requested_by' => $req?->requested_by ?? 'Sin área',
+                    'user_name' => $req?->user?->name ?? 'N/A',
+                    'status' => (string) ($req?->status ?? 'pendiente'),
+                    'product_code' => $product?->code ?? 'S/C',
+                    'product_name' => $product?->name ?? 'Producto eliminado',
+                    'unit_name' => $product?->unitOfMeasure?->abbreviation ?? $product?->unitOfMeasure?->name ?? 'UND',
+                    'quantity_requested' => $qtyReq,
+                    'quantity_delivered' => $qtyDel,
+                    'unit_cost' => $unitCost,
+                ];
+            }
+
+            unset($batch);
+            gc_collect_cycles();
+        });
+
+        $company = CompanyFacade::getCompany();
+
+        $summary = [
+            'total_requests' => count($uniqueRequestIds),
+            'total_items' => $totalItems,
+            'total_requested' => $totalRequested,
+            'total_delivered' => $totalDelivered,
+            'total_cost' => $totalCost,
+        ];
+
+        $filters = [
+            'search' => $search,
+            'status' => $status,
+            'area' => $area,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+        ];
+
+        $logoBase64 = null;
+        $logoPath = public_path('img/logo-light.png');
+        if (file_exists($logoPath)) {
+            $logoData = file_get_contents($logoPath);
+            $extension = pathinfo($logoPath, PATHINFO_EXTENSION);
+            $logoBase64 = 'data:image/' . $extension . ';base64,' . base64_encode($logoData);
+            unset($logoData);
+        }
+
+        $now = now();
+        $generatedDateText = $this->formatSpanishDate($now);
+        $generatedTimeText = $now->format('H:i') . ' hrs';
+        $generatedByUser = $request->user()?->name ?? 'Administrador';
+
+        $periodText = null;
+        if (!empty($startDate) || !empty($endDate)) {
+            $startFormatted = !empty($startDate) ? $this->formatSpanishDate($startDate) : 'Inicio';
+            $endFormatted = !empty($endDate) ? $this->formatSpanishDate($endDate) : 'Actualidad';
+            $periodText = "{$startFormatted} al {$endFormatted}";
+        }
+
+        $batches = !empty($records)
+            ? array_chunk($records, self::PDF_RENDER_BATCH_SIZE)
+            : [[]];
+        unset($records, $uniqueRequestIds);
+        gc_collect_cycles();
+
+        $masterDompdf = new \Dompdf\Dompdf();
+        $masterDompdf->setPaper('a4', 'landscape');
+        $sharedCanvas = new \Dompdf\Adapter\CPDF('a4', 'landscape', $masterDompdf);
+        $sharedFontMetrics = $masterDompdf->getFontMetrics();
+        $sharedFontMetrics->setCanvas($sharedCanvas);
+
+        $totalBatches = count($batches);
+
+        foreach ($batches as $batchIndex => $batchRecords) {
+            $isFirstBatch = ($batchIndex === 0);
+            $isLastBatch = ($batchIndex === $totalBatches - 1);
+
+            $dompdf = new \Dompdf\Dompdf();
+            if (!$isFirstBatch) {
+                $sharedCanvas->new_page();
+            }
+            $dompdf->setCanvas($sharedCanvas);
+            $dompdf->setFontMetrics($sharedFontMetrics);
+
+            $html = view('exports.reports.consumption-requests-general-pdf', [
+                'records' => $batchRecords,
+                'summary' => $summary,
+                'company' => $company,
+                'filters' => $filters,
+                'logoBase64' => $isFirstBatch ? $logoBase64 : null,
+                'generatedDateText' => $generatedDateText,
+                'generatedTimeText' => $generatedTimeText,
+                'generatedByUser' => $generatedByUser,
+                'periodText' => $periodText,
+                'isFirstBatch' => $isFirstBatch,
+                'isLastBatch' => $isLastBatch,
+                'batchNumber' => $batchIndex + 1,
+                'totalBatches' => $totalBatches,
+            ])->render();
+
+            $dompdf->loadHtml($html);
+            $dompdf->render();
+
+            if ($dompdf->getTree()) {
+                foreach ($dompdf->getTree() as $frame) {
+                    $decorator = $frame->get_decorator();
+                    if ($decorator) {
+                        $decorator->dispose(false);
+                    }
+                    $frame->dispose(false);
+                }
+            }
+
+            unset($dompdf, $html, $batchRecords);
+            if (($batchIndex + 1) % 20 === 0 || $isLastBatch) {
+                gc_collect_cycles();
+            }
+        }
+
+        unset($batches, $logoBase64, $masterDompdf);
+        gc_collect_cycles();
+
+        $filename = 'Reporte-General-Solicitudes-Consumo-' . $now->format('Y-m-d-His') . '.pdf';
+        $pdfContent = $sharedCanvas->output();
+
+        return response($pdfContent, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    private function formatSpanishDate(mixed $dateVal): string
+    {
+        if (!$dateVal) {
+            return '-';
+        }
+
+        $d = $dateVal instanceof \Carbon\CarbonInterface
+            ? $dateVal
+            : \Carbon\Carbon::parse($dateVal);
+
+        $days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+        $months = [
+            1 => 'enero', 2 => 'febrero', 3 => 'marzo', 4 => 'abril',
+            5 => 'mayo', 6 => 'junio', 7 => 'julio', 8 => 'agosto',
+            9 => 'septiembre', 10 => 'octubre', 11 => 'noviembre', 12 => 'diciembre',
+        ];
+
+        return $days[(int) $d->format('w')] . ', ' . $d->format('d') . ' de ' . $months[(int) $d->format('n')] . ' de ' . $d->format('Y');
+    }
+
+    /**
+     * Export specific consumption request in Excel (.xlsx).
+     */
+    public function exportSingleExcel(Request $request, ConsumptionRequest $consumption_request): BinaryFileResponse
+    {
+        $this->ensureAdminAccess($request->user());
+
+        $consumption_request->load([
+            'warehouse',
+            'user',
+            'details.product.unitOfMeasure',
+            'details.product.stocks',
+        ]);
+
+        $filename = 'Solicitud-Consumo-' . $consumption_request->formatted_number . '-' . now()->format('Y-m-d') . '.xlsx';
+
+        return Excel::download(
+            new ConsumptionRequestSingleExport($consumption_request),
+            $filename
+        );
+    }
+
+    /**
+     * Export specific consumption request in PDF.
+     */
+    public function exportSinglePdf(Request $request, ConsumptionRequest $consumption_request): \Illuminate\Http\Response
+    {
+        $this->ensureAdminAccess($request->user());
+
+        $consumption_request->load([
+            'warehouse.branch.company',
+            'user',
+            'approvedByUser',
+            'dispatchedByUser',
+            'receivedByUser',
+            'details.product.unitOfMeasure',
+            'details.product.stocks',
+        ]);
+
+        $company = CompanyFacade::getCompany();
+
+        $pdf = Pdf::loadView('exports.reports.consumption-request-single-pdf', [
+            'consumptionRequest' => $consumption_request,
+            'company' => $company,
+        ])->setPaper('a4', 'portrait');
+
+        $filename = 'Solicitud-Consumo-' . $consumption_request->formatted_number . '-' . now()->format('Y-m-d') . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Check whether the user has ADMIN or Super Admin privileges.
+     */
+    private function checkIsAdmin(?User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        return (bool) $user->is_super_admin || $user->hasAnyRole([
+            'Admin',
+            'admin',
+            'Administrador',
+            'administrador',
+            'Super-admin',
+            'Super Admin',
+            'Super Administrador',
+            'super administrador',
+            'super-admin',
+            'super_admin',
+            'super admin',
+        ]);
+    }
+
+    /**
+     * Abort with 403 if the user is not an ADMIN or Super Admin.
+     */
+    private function ensureAdminAccess(?User $user): void
+    {
+        if (!$this->checkIsAdmin($user)) {
+            abort(403, 'Solo los usuarios con rol de Administrador o Super Admin pueden exportar estos reportes.');
+        }
     }
 
     /**

@@ -143,16 +143,97 @@ const isConsumidor = computed(() => {
 
 const props = defineProps({
     requests: Object,
-    filters: Object
+    filters: Object,
+    areas: {
+        type: Array,
+        default: () => ['Cocina', 'Pastelería', 'Panadería', 'Eventos', 'Producción', 'Despacho']
+    },
+    isAdmin: {
+        type: Boolean,
+        default: false
+    }
 });
 
 defineOptions({ layout: AdminLayout });
 
 const search = ref(props.filters.search || '');
 const status = ref(props.filters.status || '');
+const area = ref(props.filters.area || '');
 const startDate = ref(props.filters.start_date || '');
 const endDate = ref(props.filters.end_date || '');
 const order = ref(props.filters.order || 'desc');
+const perPage = ref(Number(props.filters.per_page) || 10);
+const perPageOptions = [10, 25, 50, 100];
+
+const canExport = computed(() => {
+    if (props.isAdmin) return true;
+    const user = page.props.auth?.user;
+    if (!user) return false;
+    if (user.is_super_admin) return true;
+    const rawRoles = Array.isArray(user.roles) ? user.roles : [];
+    const roleNames = rawRoles
+        .map(r => (typeof r === 'string' ? r : (r?.name || '')))
+        .map(r => r.toLowerCase().trim());
+    return roleNames.some(r => [
+        'admin',
+        'administrador',
+        'super-admin',
+        'super admin',
+        'super administrador',
+        'super_admin'
+    ].includes(r));
+});
+
+const buildExportQuery = () => {
+    const params = new URLSearchParams();
+    if (search.value) params.append('search', search.value);
+    if (status.value) params.append('status', status.value);
+    if (area.value) params.append('area', area.value);
+    if (startDate.value) params.append('start_date', startDate.value);
+    if (endDate.value) params.append('end_date', endDate.value);
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+};
+
+const generalExcelUrl = computed(() => `/admin/consumption-requests/export-excel${buildExportQuery()}`);
+const generalPdfUrl = computed(() => `/admin/consumption-requests/export-pdf${buildExportQuery()}`);
+
+const isCheckingPdfLimit = ref(false);
+
+const handleGeneralPdfExport = async () => {
+    if (isCheckingPdfLimit.value) return;
+    isCheckingPdfLimit.value = true;
+
+    try {
+        const separator = generalPdfUrl.value.includes('?') ? '&' : '?';
+        const checkUrl = `${generalPdfUrl.value}${separator}check_only=1`;
+        const response = await fetch(checkUrl, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || (data && data.allowed === false)) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Límite de 5,000 registros superado',
+                text: data?.message || 'El reporte PDF General procesa como máximo 5,000 registros por lote. Por favor, filtre por Área Solicitante, Estado o Rango de Fechas solo lo necesario.',
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: '#44773C'
+            });
+            return;
+        }
+
+        window.location.href = generalPdfUrl.value;
+    } catch {
+        window.location.href = generalPdfUrl.value;
+    } finally {
+        isCheckingPdfLimit.value = false;
+    }
+};
 
 const localRequests = ref(props.requests?.data || []);
 
@@ -439,9 +520,11 @@ const applyFilters = debounce(() => {
     router.get(route('admin.consumption-requests.index'), {
         search: search.value,
         status: status.value,
+        area: area.value,
         start_date: startDate.value,
         end_date: endDate.value,
-        order: order.value
+        order: order.value,
+        per_page: perPage.value
     }, {
         preserveState: true,
         preserveScroll: true,
@@ -449,13 +532,50 @@ const applyFilters = debounce(() => {
     });
 }, 300);
 
-watch([search, status, startDate, endDate, order], () => {
+watch([search, status, area, startDate, endDate, order, perPage], () => {
     applyFilters();
+});
+
+const goToPage = (targetPage) => {
+    const current = props.requests?.meta?.current_page || 1;
+    const last = props.requests?.meta?.last_page || 1;
+    if (targetPage < 1 || targetPage > last || targetPage === current) return;
+
+    router.get(route('admin.consumption-requests.index'), {
+        search: search.value,
+        status: status.value,
+        area: area.value,
+        start_date: startDate.value,
+        end_date: endDate.value,
+        order: order.value,
+        per_page: perPage.value,
+        page: targetPage
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true
+    });
+};
+
+const visiblePages = computed(() => {
+    const current = props.requests?.meta?.current_page || 1;
+    const last = props.requests?.meta?.last_page || 1;
+    if (last <= 7) {
+        return Array.from({ length: last }, (_, i) => i + 1);
+    }
+    if (current <= 4) {
+        return [1, 2, 3, 4, 5, '...', last];
+    }
+    if (current >= last - 3) {
+        return [1, '...', last - 4, last - 3, last - 2, last - 1, last];
+    }
+    return [1, '...', current - 1, current, current + 1, '...', last];
 });
 
 const clearFilters = () => {
     search.value = '';
     status.value = '';
+    area.value = '';
     startDate.value = '';
     endDate.value = '';
     order.value = 'desc';
@@ -512,7 +632,36 @@ const handleConsolidatePurchases = () => {
                 </p>
             </div>
             
-            <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <div class="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
+                <a
+                    v-if="canExport"
+                    :href="generalExcelUrl"
+                    target="_blank"
+                    class="inline-flex items-center justify-center h-11 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md hover:shadow-emerald-500/10 gap-2 w-full sm:w-auto"
+                    title="Exportar reporte general en Excel según filtros activos"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    Excel General
+                </a>
+
+                <a
+                    v-if="canExport"
+                    :href="generalPdfUrl"
+                    @click.prevent="handleGeneralPdfExport"
+                    :class="[
+                        isCheckingPdfLimit ? 'opacity-75 pointer-events-none' : '',
+                        'inline-flex items-center justify-center h-11 px-4 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md hover:shadow-rose-500/10 gap-2 w-full sm:w-auto cursor-pointer'
+                    ]"
+                    title="Exportar reporte general en PDF según filtros activos (máx. 5,000 registros)"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>
+                    {{ isCheckingPdfLimit ? 'Verificando...' : 'PDF General' }}
+                </a>
+
                 <button 
                     v-if="selectedRequestIds.length > 0 && !isConsumidor"
                     @click="handleConsolidatePurchases"
@@ -539,7 +688,7 @@ const handleConsolidatePurchases = () => {
 
         <!-- FILTROS -->
         <div class="bg-white dark:bg-secondary-800 rounded-2xl p-5 border border-zinc-200/60 dark:border-secondary-700 shadow-sm transition-all duration-300">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                 <!-- Buscador -->
                 <div class="col-span-1">
                     <label class="block text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1.5">Buscar</label>
@@ -556,6 +705,20 @@ const handleConsolidatePurchases = () => {
                             </svg>
                         </div>
                     </div>
+                </div>
+
+                <!-- Área Solicitante -->
+                <div class="col-span-1">
+                    <label class="block text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1.5">Área Solicitante</label>
+                    <select 
+                        v-model="area"
+                        class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-300 focus:border-blue-500 focus:ring-0 transition-all uppercase"
+                    >
+                        <option value="">TODAS LAS ÁREAS</option>
+                        <option v-for="areaOption in areas" :key="areaOption" :value="areaOption">
+                            {{ areaOption }}
+                        </option>
+                    </select>
                 </div>
 
                 <!-- Estado -->
@@ -610,7 +773,7 @@ const handleConsolidatePurchases = () => {
                     </div>
                     
                     <button 
-                        v-if="search || status || startDate || endDate || order !== 'desc'"
+                        v-if="search || status || area || startDate || endDate || order !== 'desc'"
                         @click="clearFilters"
                         class="h-11 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-colors border border-rose-100 flex items-center justify-center flex-shrink-0"
                         title="Limpiar filtros"
@@ -784,16 +947,44 @@ const handleConsolidatePurchases = () => {
 
                             <!-- Acciones (Sticky Right) -->
                             <td class="px-6 py-4 whitespace-nowrap text-right sticky right-0 z-10 bg-white dark:bg-secondary-800 group-hover:bg-zinc-50 dark:group-hover:bg-secondary-700/60 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.06)] dark:shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.3)]">
-                                <Link 
-                                    :href="route('admin.consumption-requests.show', { consumption_request: req.id })"
-                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-secondary-900 dark:hover:bg-secondary-950 text-slate-700 dark:text-secondary-300 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-slate-200/50 dark:border-secondary-800"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                    </svg>
-                                    Ver Detalle
-                                </Link>
+                                <div class="inline-flex items-center justify-end gap-1.5">
+                                    <a
+                                        v-if="canExport"
+                                        :href="`/admin/consumption-requests/${req.id}/export-excel`"
+                                        target="_blank"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-emerald-200 dark:border-emerald-800/60"
+                                        title="Exportar solicitud en Excel"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                        </svg>
+                                        Excel
+                                    </a>
+
+                                    <a
+                                        v-if="canExport"
+                                        :href="`/admin/consumption-requests/${req.id}/export-pdf`"
+                                        target="_blank"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-rose-200 dark:border-rose-800/60"
+                                        title="Exportar solicitud en PDF"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                        </svg>
+                                        PDF
+                                    </a>
+
+                                    <Link 
+                                        :href="route('admin.consumption-requests.show', { consumption_request: req.id })"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-secondary-900 dark:hover:bg-secondary-950 text-slate-700 dark:text-secondary-300 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-slate-200/50 dark:border-secondary-800"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                        </svg>
+                                        Ver Detalle
+                                    </Link>
+                                </div>
                             </td>
                         </tr>
 
@@ -902,7 +1093,27 @@ const handleConsolidatePurchases = () => {
                     </div>
 
                     <!-- Acciones -->
-                    <div class="flex justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-secondary-700/50">
+                    <div class="flex flex-wrap justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-secondary-700/50">
+                        <a
+                            v-if="canExport"
+                            :href="`/admin/consumption-requests/${req.id}/export-excel`"
+                            target="_blank"
+                            class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase tracking-wider border border-emerald-200 dark:border-emerald-800/60"
+                            title="Exportar Excel"
+                        >
+                            Excel
+                        </a>
+
+                        <a
+                            v-if="canExport"
+                            :href="`/admin/consumption-requests/${req.id}/export-pdf`"
+                            target="_blank"
+                            class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-[10px] font-black uppercase tracking-wider border border-rose-200 dark:border-rose-800/60"
+                            title="Exportar PDF"
+                        >
+                            PDF
+                        </a>
+
                         <!-- Ver Detalle -->
                         <Link 
                             :href="route('admin.consumption-requests.show', { consumption_request: req.id })"
@@ -942,27 +1153,101 @@ const handleConsolidatePurchases = () => {
 
             <!-- PAGINACIÓN -->
             <div 
-                v-if="requests.meta && requests.meta.last_page > 1"
-                class="px-6 py-4 bg-zinc-50 dark:bg-secondary-900/30 border-t border-zinc-100 dark:border-secondary-700 flex items-center justify-between"
+                v-if="requests.meta && requests.meta.total > 0"
+                class="px-4 sm:px-6 py-3.5 bg-zinc-50 dark:bg-secondary-900/40 border-t border-zinc-200/80 dark:border-secondary-700 flex flex-col sm:flex-row items-center justify-end gap-3 sm:gap-5"
             >
-                <div class="text-xs font-semibold text-zinc-500 dark:text-secondary-400 uppercase tracking-tight">
-                    Mostrando página {{ requests.meta.current_page }} de {{ requests.meta.last_page }}
+                <div class="text-xs sm:text-sm font-medium text-zinc-500 dark:text-secondary-400">
+                    Mostrando del <span class="font-semibold text-zinc-700 dark:text-secondary-200">{{ requests.meta.from || 0 }}</span> al <span class="font-semibold text-zinc-700 dark:text-secondary-200">{{ requests.meta.to || 0 }}</span> total de <span class="font-semibold text-zinc-700 dark:text-secondary-200">{{ requests.meta.total || 0 }}</span>
                 </div>
-                <div class="flex gap-2">
-                    <Link 
-                        v-if="requests.links.prev"
-                        :href="requests.links.prev"
-                        class="px-3 py-1.5 bg-white dark:bg-secondary-800 border border-zinc-200/60 dark:border-secondary-700 rounded-lg text-[10px] font-black uppercase text-zinc-700 dark:text-secondary-300 hover:bg-zinc-50 dark:hover:bg-secondary-700/50 transition-colors"
+
+                <div class="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5">
+                    <!-- Primera página « -->
+                    <button
+                        type="button"
+                        @click="goToPage(1)"
+                        :disabled="requests.meta.current_page <= 1"
+                        title="Primera página"
+                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-500 dark:text-secondary-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-secondary-800 disabled:opacity-35 disabled:pointer-events-none transition-colors"
                     >
-                        Anterior
-                    </Link>
-                    <Link 
-                        v-if="requests.links.next"
-                        :href="requests.links.next"
-                        class="px-3 py-1.5 bg-white dark:bg-secondary-800 border border-zinc-200/60 dark:border-secondary-700 rounded-lg text-[10px] font-black uppercase text-zinc-700 dark:text-secondary-300 hover:bg-zinc-50 dark:hover:bg-secondary-700/50 transition-colors"
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5" />
+                        </svg>
+                    </button>
+
+                    <!-- Página anterior ‹ -->
+                    <button
+                        type="button"
+                        @click="goToPage(requests.meta.current_page - 1)"
+                        :disabled="requests.meta.current_page <= 1"
+                        title="Página anterior"
+                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-500 dark:text-secondary-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-secondary-800 disabled:opacity-35 disabled:pointer-events-none transition-colors"
                     >
-                        Siguiente
-                    </Link>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                        </svg>
+                    </button>
+
+                    <!-- Números de página -->
+                    <template v-for="(pageItem, idx) in visiblePages" :key="idx">
+                        <span
+                            v-if="pageItem === '...'"
+                            class="inline-flex items-center justify-center w-8 h-8 text-xs font-semibold text-zinc-400 dark:text-secondary-500 select-none"
+                        >
+                            ...
+                        </span>
+                        <button
+                            v-else
+                            type="button"
+                            @click="goToPage(pageItem)"
+                            :class="[
+                                'inline-flex items-center justify-center min-w-[32px] h-8 px-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all',
+                                pageItem === requests.meta.current_page
+                                    ? 'bg-zinc-200/80 dark:bg-secondary-700/80 text-zinc-900 dark:text-white font-bold shadow-sm'
+                                    : 'text-zinc-500 dark:text-secondary-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-secondary-800'
+                            ]"
+                        >
+                            {{ pageItem }}
+                        </button>
+                    </template>
+
+                    <!-- Página siguiente › -->
+                    <button
+                        type="button"
+                        @click="goToPage(requests.meta.current_page + 1)"
+                        :disabled="requests.meta.current_page >= requests.meta.last_page"
+                        title="Página siguiente"
+                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-500 dark:text-secondary-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-secondary-800 disabled:opacity-35 disabled:pointer-events-none transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </button>
+
+                    <!-- Última página » -->
+                    <button
+                        type="button"
+                        @click="goToPage(requests.meta.last_page)"
+                        :disabled="requests.meta.current_page >= requests.meta.last_page"
+                        title="Última página"
+                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-500 dark:text-secondary-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-secondary-800 disabled:opacity-35 disabled:pointer-events-none transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </button>
+
+                    <!-- Selector de cantidad por página -->
+                    <div class="relative ml-1">
+                        <select
+                            v-model.number="perPage"
+                            aria-label="Registros por página"
+                            class="h-9 pl-3 pr-8 bg-white dark:bg-secondary-900 border border-zinc-200 dark:border-secondary-700 rounded-lg text-xs sm:text-sm font-bold text-zinc-800 dark:text-secondary-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                        >
+                            <option v-for="opt in perPageOptions" :key="opt" :value="opt">
+                                {{ opt }}
+                            </option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
