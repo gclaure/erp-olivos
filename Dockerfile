@@ -23,7 +23,7 @@ ENV VITE_APP_NAME=$VITE_APP_NAME
 RUN pnpm run build
 
 # --- Etapa 2: Aplicación PHP + Nginx ---
-FROM php:8.4-fpm
+FROM php:8.4.27-fpm
 
 # Instalar Nginx y dependencias del sistema
 RUN apt-get update && apt-get install -y \
