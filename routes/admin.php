@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AccountReceivableController;
 use App\Http\Controllers\Admin\AccountPayableController;
 use App\Http\Controllers\Admin\PurchaseOrderController;
 use App\Http\Controllers\Admin\ConsumptionRequestController;
+use App\Http\Controllers\Admin\OrderController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [\App\Http\Controllers\Admin\DashboardController::class, 'index'])->name('dashboard');
@@ -111,6 +112,18 @@ Route::group(['prefix' => 'consumption-requests', 'as' => 'consumption-requests.
     Route::post('/{consumption_request}/approve', [ConsumptionRequestController::class, 'approve'])->name('approve');
     Route::post('/{consumption_request}/observe', [ConsumptionRequestController::class, 'observe'])->name('observe');
     Route::put('/{consumption_request}/details/{detail}', [ConsumptionRequestController::class, 'updateDetailQuantity'])->name('update-detail-quantity');
+});
+
+// Registro e Historial de Pedidos
+Route::group(['prefix' => 'orders', 'as' => 'orders.'], function () {
+    Route::get('/', [OrderController::class, 'index'])->name('index');
+    Route::get('/create', [OrderController::class, 'create'])->name('create');
+    Route::post('/', [OrderController::class, 'store'])->name('store');
+    Route::get('/customers/search', [OrderController::class, 'searchCustomers'])->name('customers.search');
+    Route::get('/{order}', [OrderController::class, 'show'])->name('show');
+    Route::post('/{order}/cancel', [OrderController::class, 'cancel'])->name('cancel');
+    Route::post('/{order}/payments', [OrderController::class, 'addPayment'])->name('payments.store');
+    Route::get('/{order}/receipt-pdf', [OrderController::class, 'receiptPdf'])->name('receipt-pdf');
 });
 
 // Ventas (Redireccionado a Consumo)

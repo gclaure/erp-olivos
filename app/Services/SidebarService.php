@@ -101,6 +101,25 @@ class SidebarService
                 ]
             ],
             [
+                'label' => 'Pedidos',
+                'icon' => 'shopping-bag',
+                'permission' => 'manage-orders',
+                'children' => [
+                    [
+                        'label' => 'Registrar Pedido',
+                        'icon' => 'plus-circle',
+                        'route' => 'admin.orders.create',
+                        'permission' => 'manage-orders',
+                    ],
+                    [
+                        'label' => 'Historial de Pedidos',
+                        'icon' => 'clipboard-document-list',
+                        'route' => 'admin.orders.index',
+                        'permission' => 'manage-orders',
+                    ],
+                ]
+            ],
+            [
                 'label' => 'Compras',
                 'icon' => 'shopping-cart',
                 'permission' => 'manage-purchases',

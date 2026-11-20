@@ -21,6 +21,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton('company.service', function ($app) {
             return new \App\Services\CompanyService();
         });
+
+        $this->app->singleton('order.service', function ($app) {
+            return new \App\Services\OrderService();
+        });
     }
 
     /**
