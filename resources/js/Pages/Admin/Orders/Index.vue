@@ -115,6 +115,13 @@ const clearCustomerFilter = () => {
     applyFilters({ page: 1 });
 };
 
+const exportExcel = () => {
+    const params = buildFilterParams();
+    delete params.page;
+    delete params.per_page;
+    window.location.href = route('admin.orders.export-excel', params);
+};
+
 // Paginador interactivo completo
 const goToPage = (pageNumber) => {
     const current = props.orders.current_page || 1;
@@ -240,10 +247,25 @@ const summarizeProducts = (order) => {
                     </p>
                 </div>
 
-                <div class="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
+                <div class="flex flex-col sm:flex-row flex-wrap gap-2.5 w-full sm:w-auto">
+                    <button
+                        type="button"
+                        @click="exportExcel"
+                        class="inline-flex items-center justify-center h-11 px-4 bg-white hover:bg-zinc-50 dark:bg-secondary-800 dark:hover:bg-secondary-700/80 text-zinc-700 dark:text-secondary-100 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 border border-zinc-200/80 dark:border-secondary-700 shadow-sm hover:shadow hover:border-primary-500/40 hover:text-primary-700 dark:hover:text-primary-300 gap-2 w-full sm:w-auto group active:scale-[0.98]"
+                        :title="hasActiveFilters ? 'Exportar pedidos aplicando los filtros activos' : 'Exportar todos los pedidos a Excel'"
+                    >
+                        <span class="material-symbols-outlined text-lg text-primary-600 dark:text-primary-400 group-hover:scale-110 transition-transform">table_view</span>
+                        <span>Exportar Excel</span>
+                        <span
+                            v-if="hasActiveFilters"
+                            class="w-2 h-2 rounded-full bg-primary-500 animate-pulse"
+                            title="Filtros activos"
+                        ></span>
+                    </button>
+
                     <Link
                         :href="route('admin.orders.create')"
-                        class="inline-flex items-center justify-center h-11 px-5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md gap-2 w-full sm:w-auto"
+                        class="inline-flex items-center justify-center h-11 px-5 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md gap-2 w-full sm:w-auto active:scale-[0.98]"
                     >
                         <span class="material-symbols-outlined text-lg">add</span>
                         Registrar Pedido
@@ -262,21 +284,21 @@ const summarizeProducts = (order) => {
                             {{ stats.total_orders }}
                         </div>
                     </div>
-                    <div class="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                    <div class="w-11 h-11 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 flex items-center justify-center">
                         <span class="material-symbols-outlined">inventory</span>
                     </div>
                 </div>
 
                 <div class="bg-white dark:bg-secondary-800 p-4 sm:p-5 rounded-2xl border border-zinc-200/60 dark:border-secondary-700 shadow-sm flex items-center justify-between">
                     <div>
-                        <span class="block text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
+                        <span class="block text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">
                             Entregas Para Hoy
                         </span>
-                        <div class="text-xl sm:text-2xl lg:text-3xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                        <div class="text-xl sm:text-2xl lg:text-3xl font-black text-primary-600 dark:text-primary-400 mt-1">
                             {{ stats.today_deliveries }}
                         </div>
                     </div>
-                    <div class="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                    <div class="w-11 h-11 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 flex items-center justify-center">
                         <span class="material-symbols-outlined">event_available</span>
                     </div>
                 </div>
@@ -313,14 +335,14 @@ const summarizeProducts = (order) => {
             <!-- BANNER DE HISTORIAL DE UN CLIENTE ESPECÍFICO -->
             <div
                 v-if="selectedCustomer"
-                class="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                class="bg-primary-50 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-800/60 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
             >
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm">
+                    <div class="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center font-black text-sm">
                         {{ selectedCustomer.full_name?.slice(0, 2).toUpperCase() }}
                     </div>
                     <div>
-                        <div class="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                        <div class="text-[10px] font-black uppercase tracking-widest text-primary-700 dark:text-primary-300">
                             Filtrando pedidos anteriores del cliente
                         </div>
                         <div class="text-sm font-black text-zinc-900 dark:text-white uppercase">
@@ -331,7 +353,7 @@ const summarizeProducts = (order) => {
                 <button
                     type="button"
                     @click="clearCustomerFilter"
-                    class="inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl bg-white dark:bg-secondary-800 border border-indigo-200 dark:border-secondary-700 text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-secondary-700 transition-colors"
+                    class="inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl bg-white dark:bg-secondary-800 border border-primary-200 dark:border-secondary-700 text-xs font-black uppercase tracking-wider text-primary-700 dark:text-primary-300 hover:bg-primary-100 dark:hover:bg-secondary-700 transition-colors"
                 >
                     <span class="material-symbols-outlined text-base">close</span>
                     Ver Todos los Clientes
@@ -352,7 +374,7 @@ const summarizeProducts = (order) => {
                                 type="text"
                                 placeholder="Ej: #00001, Andrea Longhi o 78631135..."
                                 @input="handleSearchInput"
-                                class="w-full h-11 pl-10 pr-4 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 placeholder-zinc-400 dark:placeholder-secondary-500 focus:border-indigo-500 focus:ring-0 transition-all"
+                                class="w-full h-11 pl-10 pr-4 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 placeholder-zinc-400 dark:placeholder-secondary-500 focus:border-primary-500 focus:ring-0 transition-all"
                             />
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <span class="material-symbols-outlined text-zinc-400 text-lg">search</span>
@@ -368,7 +390,7 @@ const summarizeProducts = (order) => {
                         <select
                             v-model="localFilters.delivery_mode"
                             @change="applyFilters({ page: 1 })"
-                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-indigo-500 focus:ring-0 transition-all uppercase"
+                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-primary-500 focus:ring-0 transition-all uppercase"
                         >
                             <option value="">TODAS LAS MODALIDADES</option>
                             <option v-for="m in deliveryModes" :key="m.value" :value="m.value">{{ m.label }}</option>
@@ -383,7 +405,7 @@ const summarizeProducts = (order) => {
                         <select
                             v-model="localFilters.status"
                             @change="applyFilters({ page: 1 })"
-                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-indigo-500 focus:ring-0 transition-all uppercase"
+                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-primary-500 focus:ring-0 transition-all uppercase"
                         >
                             <option value="">TODOS LOS ESTADOS</option>
                             <option value="registrado">REGISTRADOS (ACTIVOS)</option>
@@ -400,7 +422,7 @@ const summarizeProducts = (order) => {
                             v-model="localFilters.delivery_from"
                             type="date"
                             @change="applyFilters({ page: 1 })"
-                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-indigo-500 focus:ring-0 transition-all"
+                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-primary-500 focus:ring-0 transition-all"
                         />
                     </div>
 
@@ -413,7 +435,7 @@ const summarizeProducts = (order) => {
                             v-model="localFilters.delivery_to"
                             type="date"
                             @change="applyFilters({ page: 1 })"
-                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-indigo-500 focus:ring-0 transition-all"
+                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-primary-500 focus:ring-0 transition-all"
                         />
                     </div>
 
@@ -426,7 +448,7 @@ const summarizeProducts = (order) => {
                             v-model="localFilters.registered_from"
                             type="date"
                             @change="applyFilters({ page: 1 })"
-                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-indigo-500 focus:ring-0 transition-all"
+                            class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-primary-500 focus:ring-0 transition-all"
                         />
                     </div>
 
@@ -440,7 +462,7 @@ const summarizeProducts = (order) => {
                                 v-model="localFilters.registered_to"
                                 type="date"
                                 @change="applyFilters({ page: 1 })"
-                                class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-indigo-500 focus:ring-0 transition-all"
+                                class="w-full h-11 px-3 rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold text-zinc-700 dark:text-secondary-200 focus:border-primary-500 focus:ring-0 transition-all"
                             />
                         </div>
 
@@ -496,12 +518,20 @@ const summarizeProducts = (order) => {
                                     <button
                                         type="button"
                                         @click="openOrderDetail(order.id)"
-                                        class="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-colors"
+                                        class="inline-flex items-center px-2.5 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-colors"
                                     >
                                         #{{ order.formatted_number }}
                                     </button>
                                     <div class="text-[10px] font-bold text-zinc-400 dark:text-secondary-400 uppercase tracking-widest mt-1">
                                         Reg: {{ order.registered_at_formatted }}
+                                    </div>
+                                    <div
+                                        v-if="order.user?.name"
+                                        class="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-600 dark:text-secondary-300 mt-1 bg-zinc-100 dark:bg-secondary-700/60 px-2 py-0.5 rounded-md"
+                                        :title="`Registrado por: ${order.user.name}`"
+                                    >
+                                        <span class="material-symbols-outlined text-[12px] text-zinc-400 dark:text-secondary-400">person</span>
+                                        <span class="truncate max-w-[120px]">{{ order.user.name }}</span>
                                     </div>
                                 </td>
 
@@ -517,7 +547,7 @@ const summarizeProducts = (order) => {
                                         v-if="(order.customer?.orders_count || 0) > 1 && localFilters.customer_id !== order.customer?.id"
                                         type="button"
                                         @click="filterByCustomer(order.customer)"
-                                        class="mt-1 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:underline"
+                                        class="mt-1 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-primary-600 dark:text-primary-400 hover:underline"
                                     >
                                         <span class="material-symbols-outlined text-xs">history</span>
                                         {{ order.customer.orders_count }} pedidos del cliente
@@ -533,7 +563,7 @@ const summarizeProducts = (order) => {
                                         class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest mt-1 border"
                                         :class="order.delivery_mode === 'delivery'
                                             ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/40'
-                                            : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/40'"
+                                            : 'bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-800/40'"
                                     >
                                         {{ order.delivery_mode_label }}
                                     </span>
@@ -551,7 +581,7 @@ const summarizeProducts = (order) => {
                                             ({{ it.portions_or_size }})
                                         </span>
                                     </div>
-                                    <div v-if="(order.items || []).length > 2" class="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 mt-0.5">
+                                    <div v-if="(order.items || []).length > 2" class="text-[10px] font-black uppercase text-primary-600 dark:text-primary-400 mt-0.5">
                                         +{{ order.items.length - 2 }} producto(s) más
                                     </div>
                                 </td>
@@ -575,7 +605,7 @@ const summarizeProducts = (order) => {
                                         <button
                                             type="button"
                                             @click="openOrderDetail(order.id)"
-                                            class="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white border border-indigo-200/70 dark:border-indigo-800/40 transition-all shadow-sm"
+                                            class="w-9 h-9 flex items-center justify-center rounded-xl bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 hover:bg-primary-600 hover:text-white border border-primary-200/70 dark:border-primary-800/40 transition-all shadow-sm"
                                             title="Ver detalle completo de la reserva"
                                         >
                                             <span class="material-symbols-outlined text-lg">visibility</span>
@@ -630,7 +660,7 @@ const summarizeProducts = (order) => {
                         <!-- Cabecera de la Tarjeta -->
                         <div class="flex items-start justify-between gap-2 pb-2 border-b border-zinc-100 dark:border-secondary-700">
                             <div>
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-indigo-600 text-white text-xs font-black uppercase tracking-wider">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-primary-600 text-white text-xs font-black uppercase tracking-wider">
                                     Reserva #{{ order.formatted_number }}
                                 </span>
                                 <div class="text-xs font-black text-zinc-900 dark:text-white uppercase mt-1.5">
@@ -660,6 +690,14 @@ const summarizeProducts = (order) => {
                             </div>
 
                             <div class="flex justify-between items-center py-2">
+                                <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Registrado por</span>
+                                <span class="text-xs font-bold text-zinc-900 dark:text-white text-right inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-xs text-zinc-400">person</span>
+                                    {{ order.user?.name || '—' }}
+                                </span>
+                            </div>
+
+                            <div class="flex justify-between items-center py-2">
                                 <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Entrega</span>
                                 <span class="text-xs font-bold text-zinc-900 dark:text-white text-right">
                                     {{ order.delivery_date_short }} · {{ order.delivery_time }}
@@ -668,7 +706,7 @@ const summarizeProducts = (order) => {
 
                             <div class="flex justify-between items-center py-2">
                                 <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Modalidad</span>
-                                <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400 text-right">{{ order.delivery_mode_label }}</span>
+                                <span class="text-xs font-bold text-primary-700 dark:text-primary-300 text-right">{{ order.delivery_mode_label }}</span>
                             </div>
 
                             <div class="flex justify-between items-center py-2 gap-4">
@@ -687,7 +725,7 @@ const summarizeProducts = (order) => {
                             <button
                                 type="button"
                                 @click="openOrderDetail(order.id)"
-                                class="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center"
+                                class="w-10 h-10 rounded-full bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 flex items-center justify-center"
                                 title="Ver detalle"
                             >
                                 <span class="material-symbols-outlined text-lg">visibility</span>
@@ -774,7 +812,7 @@ const summarizeProducts = (order) => {
                                 :class="[
                                     'w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all',
                                     pageItem === orders.current_page
-                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        ? 'bg-primary-600 text-white shadow-sm'
                                         : 'text-zinc-600 dark:text-secondary-300 hover:bg-zinc-200/70 dark:hover:bg-secondary-700'
                                 ]"
                             >
@@ -810,7 +848,7 @@ const summarizeProducts = (order) => {
                                 v-model.number="localFilters.per_page"
                                 @change="changePerPage"
                                 aria-label="Registros por página"
-                                class="h-9 pl-3 pr-8 rounded-xl border border-zinc-300 dark:border-secondary-700 bg-white dark:bg-secondary-900 text-xs font-bold text-zinc-800 dark:text-secondary-100 focus:border-indigo-500 focus:ring-0 transition-all cursor-pointer"
+                                class="h-9 pl-3 pr-8 rounded-xl border border-zinc-300 dark:border-secondary-700 bg-white dark:bg-secondary-900 text-xs font-bold text-zinc-800 dark:text-secondary-100 focus:border-primary-500 focus:ring-0 transition-all cursor-pointer"
                             >
                                 <option v-for="opt in perPageOptions" :key="opt" :value="opt">
                                     {{ opt }}

@@ -151,6 +151,10 @@ const props = defineProps({
     isAdmin: {
         type: Boolean,
         default: false
+    },
+    pendingModificationsCount: {
+        type: Number,
+        default: 0
     }
 });
 
@@ -447,9 +451,9 @@ const getDetailedStatusInfo = (req) => {
         return {
             label: 'Despachado',
             sublabel: 'Por Recibir (Solicitante)',
-            containerClass: 'bg-fuchsia-50/90 border-fuchsia-200 text-fuchsia-900 dark:bg-fuchsia-950/40 dark:border-fuchsia-700/60 dark:text-fuchsia-200 shadow-xs',
-            sublabelClass: 'text-fuchsia-700 dark:text-fuchsia-300/90',
-            dotClass: 'bg-fuchsia-500'
+            containerClass: 'bg-sky-50/90 border-sky-200 text-sky-900 dark:bg-sky-950/40 dark:border-sky-700/60 dark:text-sky-200 shadow-xs',
+            sublabelClass: 'text-sky-700 dark:text-sky-300/90',
+            dotClass: 'bg-sky-500'
         };
     }
 
@@ -457,9 +461,9 @@ const getDetailedStatusInfo = (req) => {
         return {
             label: 'Despacho Parcial',
             sublabel: req.has_missing_stock ? 'Falta Stock (Compra)' : 'Entrega Parcial',
-            containerClass: 'bg-indigo-50/90 border-indigo-200 text-indigo-900 dark:bg-indigo-950/40 dark:border-indigo-700/60 dark:text-indigo-200 shadow-xs',
-            sublabelClass: 'text-indigo-700 dark:text-indigo-300/90',
-            dotClass: 'bg-indigo-500'
+            containerClass: 'bg-primary-50/90 border-primary-200 text-primary-900 dark:bg-primary-950/40 dark:border-primary-700/60 dark:text-primary-200 shadow-xs',
+            sublabelClass: 'text-primary-700 dark:text-primary-300/90',
+            dotClass: 'bg-primary-500'
         };
     }
 
@@ -492,9 +496,9 @@ const getStatusBadgeClass = (statusVal) => {
         case 'parcial':
             return 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/10 dark:bg-blue-500/10 dark:text-blue-400 dark:ring-blue-500/20';
         case 'despachado':
-            return 'bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-600/10 dark:bg-fuchsia-500/10 dark:text-fuchsia-400 dark:ring-fuchsia-500/20';
+            return 'bg-sky-50 text-sky-700 ring-1 ring-sky-600/10 dark:bg-sky-500/10 dark:text-sky-400 dark:ring-sky-500/20';
         case 'despachado_parcial':
-            return 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600/10 dark:bg-indigo-500/10 dark:text-indigo-400 dark:ring-indigo-500/20';
+            return 'bg-primary-50 text-primary-700 ring-1 ring-primary-600/10 dark:bg-primary-500/10 dark:text-primary-400 dark:ring-primary-500/20';
         case 'cancelado':
             return 'bg-rose-50 text-rose-700 ring-1 ring-rose-600/10 dark:bg-rose-500/10 dark:text-rose-400 dark:ring-rose-500/20';
         default:
@@ -633,6 +637,21 @@ const handleConsolidatePurchases = () => {
             </div>
             
             <div class="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
+                <Link
+                    v-if="isAdmin"
+                    :href="route('admin.consumption-modifications.index')"
+                    class="inline-flex items-center justify-center h-11 px-4 bg-white hover:bg-zinc-50 dark:bg-secondary-800 dark:hover:bg-secondary-700 text-zinc-800 dark:text-secondary-100 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-zinc-200 dark:border-secondary-700 shadow-sm gap-2 w-full sm:w-auto"
+                >
+                    <span class="material-symbols-outlined text-lg text-primary-600 dark:text-primary-400">swap_horiz</span>
+                    <span>Modificaciones</span>
+                    <span
+                        v-if="pendingModificationsCount > 0"
+                        class="px-2 py-0.5 rounded-full text-[10px] font-black font-mono bg-amber-500 text-white"
+                    >
+                        {{ pendingModificationsCount }}
+                    </span>
+                </Link>
+
                 <a
                     v-if="canExport"
                     :href="generalExcelUrl"
@@ -665,7 +684,7 @@ const handleConsolidatePurchases = () => {
                 <button 
                     v-if="selectedRequestIds.length > 0 && !isConsumidor"
                     @click="handleConsolidatePurchases"
-                    class="inline-flex items-center justify-center h-11 px-5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md hover:shadow-indigo-500/10 gap-2 w-full sm:w-auto"
+                    class="inline-flex items-center justify-center h-11 px-5 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md hover:shadow-primary-500/10 gap-2 w-full sm:w-auto"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
@@ -732,7 +751,7 @@ const handleConsolidatePurchases = () => {
                         <option value="pendiente">PENDIENTE (POR APROBAR)</option>
                         <option value="aprobado">APROBADO (EN ALMACÉN)</option>
                         <option value="despachado">DESPACHADO (POR RECIBIR)</option>
-                        <option value="parcial">DESPACHO PARCIAL</option>
+                        <option value="despachado_parcial">DESPACHO PARCIAL</option>
                         <option value="entregado">ENTREGADO</option>
                         <option value="observado">OBSERVADO</option>
                         <option value="cancelado">CANCELADO</option>
@@ -789,14 +808,14 @@ const handleConsolidatePurchases = () => {
         <!-- Barra de navegación y ayuda del scroll horizontal (Sticky para que no se pierda al hacer scroll hacia abajo) -->
         <div class="hidden md:flex 2xl:hidden sticky top-0 z-30 items-center justify-between px-4 py-2 bg-white/95 dark:bg-secondary-800/95 backdrop-blur-md rounded-xl border border-zinc-200/90 dark:border-secondary-700/90 mb-3 text-xs text-zinc-600 dark:text-secondary-300 shadow-md transition-all">
             <div class="flex items-center gap-2 font-medium">
-                <span class="material-symbols-outlined text-[18px] text-indigo-500">swipe</span>
+                <span class="material-symbols-outlined text-[18px] text-primary-500">swipe</span>
                 <span>Desliza horizontalmente para inspeccionar todas las columnas y acciones</span>
             </div>
             <div class="flex items-center gap-1.5">
                 <button 
                     @click="scrollTable('left')" 
                     type="button"
-                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-secondary-700 dark:hover:bg-secondary-600 border border-zinc-200 dark:border-secondary-600 text-zinc-700 dark:text-secondary-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold transition-all shadow-sm active:scale-95"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-secondary-700 dark:hover:bg-secondary-600 border border-zinc-200 dark:border-secondary-600 text-zinc-700 dark:text-secondary-200 hover:text-primary-600 dark:hover:text-primary-400 font-bold transition-all shadow-sm active:scale-95"
                     title="Desplazar tabla a la izquierda"
                 >
                     <span class="material-symbols-outlined text-[16px] leading-none">chevron_left</span>
@@ -805,7 +824,7 @@ const handleConsolidatePurchases = () => {
                 <button 
                     @click="scrollTable('right')" 
                     type="button"
-                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 font-bold transition-all shadow-sm active:scale-95"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/30 dark:hover:bg-primary-900/50 border border-primary-200 dark:border-primary-800/50 text-primary-700 dark:text-primary-300 font-bold transition-all shadow-sm active:scale-95"
                     title="Desplazar tabla a la derecha"
                 >
                     <span class="text-[11px]">Derecha (Acciones)</span>
@@ -827,7 +846,7 @@ const handleConsolidatePurchases = () => {
                                     type="checkbox"
                                     :checked="areAllEligibleSelected"
                                     @change="toggleSelectAllEligible"
-                                    class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-secondary-700 dark:bg-secondary-900 w-4 h-4 cursor-pointer"
+                                    class="rounded border-zinc-300 text-primary-600 focus:ring-primary-500 dark:border-secondary-700 dark:bg-secondary-900 w-4 h-4 cursor-pointer"
                                     title="Seleccionar todas las que faltan stock"
                                 />
                             </th>
@@ -845,7 +864,7 @@ const handleConsolidatePurchases = () => {
                             v-for="req in localRequests" 
                             :key="req.id"
                             :class="[
-                                selectedRequestIds.includes(req.id) ? 'bg-indigo-50/20 dark:bg-indigo-950/10' : '',
+                                selectedRequestIds.includes(req.id) ? 'bg-primary-50/20 dark:bg-primary-950/10' : '',
                                 'hover:bg-zinc-50/50 dark:hover:bg-secondary-700/10 transition-colors group'
                             ]"
                         >
@@ -856,7 +875,7 @@ const handleConsolidatePurchases = () => {
                                     type="checkbox"
                                     v-model="selectedRequestIds"
                                     :value="req.id"
-                                    class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-secondary-700 dark:bg-secondary-900 w-4 h-4 cursor-pointer"
+                                    class="rounded border-zinc-300 text-primary-600 focus:ring-primary-500 dark:border-secondary-700 dark:bg-secondary-900 w-4 h-4 cursor-pointer"
                                 />
                                 <span v-else class="text-zinc-300 dark:text-secondary-700">-</span>
                             </td>
@@ -913,6 +932,12 @@ const handleConsolidatePurchases = () => {
                                     <span class="text-[10px] font-extrabold tracking-tight mt-0.5" :class="getDetailedStatusInfo(req).sublabelClass">
                                         {{ getDetailedStatusInfo(req).sublabel }}
                                     </span>
+                                    <div v-if="req.has_open_modifications" class="mt-1">
+                                        <span class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-700">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                            Modificación Abierta ({{ req.open_modifications_count }})
+                                        </span>
+                                    </div>
                                     <!-- Indicadores Semáforo de Disponibilidad de Stock para Almacén -->
                                     <div v-if="req.status === 'pendiente' || req.status === 'parcial' || req.status === 'aprobado' || req.status === 'despachado_parcial'" class="mt-1">
                                         <span 
@@ -1010,7 +1035,7 @@ const handleConsolidatePurchases = () => {
                     v-for="req in localRequests" 
                     :key="req.id"
                     :class="[
-                        selectedRequestIds.includes(req.id) ? 'bg-indigo-50/20 dark:bg-indigo-950/10' : '',
+                        selectedRequestIds.includes(req.id) ? 'bg-primary-50/20 dark:bg-primary-950/10' : '',
                         'p-5 space-y-4 hover:bg-zinc-50/30 dark:hover:bg-secondary-700/5 transition-colors'
                     ]"
                 >
@@ -1023,9 +1048,9 @@ const handleConsolidatePurchases = () => {
                                 type="checkbox"
                                 v-model="selectedRequestIds"
                                 :value="req.id"
-                                class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-secondary-700 dark:bg-secondary-900 w-4.5 h-4.5 cursor-pointer"
+                                class="rounded border-zinc-300 text-primary-600 focus:ring-primary-500 dark:border-secondary-700 dark:bg-secondary-900 w-4.5 h-4.5 cursor-pointer"
                             />
-                            <span class="text-xs font-black text-indigo-600 dark:text-indigo-400 tracking-wider uppercase">
+                            <span class="text-xs font-black text-primary-600 dark:text-primary-400 tracking-wider uppercase">
                                 #{{ req.formatted_number || 'S/N' }}
                             </span>
                         </div>
@@ -1241,7 +1266,7 @@ const handleConsolidatePurchases = () => {
                         <select
                             v-model.number="perPage"
                             aria-label="Registros por página"
-                            class="h-9 pl-3 pr-8 bg-white dark:bg-secondary-900 border border-zinc-200 dark:border-secondary-700 rounded-lg text-xs sm:text-sm font-bold text-zinc-800 dark:text-secondary-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                            class="h-9 pl-3 pr-8 bg-white dark:bg-secondary-900 border border-zinc-200 dark:border-secondary-700 rounded-lg text-xs sm:text-sm font-bold text-zinc-800 dark:text-secondary-100 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all cursor-pointer"
                         >
                             <option v-for="opt in perPageOptions" :key="opt" :value="opt">
                                 {{ opt }}

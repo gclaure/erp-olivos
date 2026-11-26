@@ -68,6 +68,12 @@ class ConsumptionRequestResource extends JsonResource
             'cancelled_at_formatted' => $this->cancelled_at ? $this->cancelled_at->translatedFormat('d \d\e F, Y \a \l\a\s H:i') : null,
             'cancellation_notes' => $this->cancellation_notes,
             'details' => ConsumptionRequestDetailResource::collection($this->whenLoaded('details')),
+            'open_modifications_count' => isset($this->open_modifications_count)
+                ? (int) $this->open_modifications_count
+                : ($this->relationLoaded('openModifications') ? $this->openModifications->count() : 0),
+            'has_open_modifications' => isset($this->open_modifications_count)
+                ? ((int) $this->open_modifications_count > 0)
+                : ($this->relationLoaded('openModifications') ? $this->openModifications->isNotEmpty() : false),
             'has_missing_stock' => $this->whenLoaded('details', function () {
                 foreach ($this->details as $detail) {
                     if ($detail->product && !$detail->product->isInventoriable()) {

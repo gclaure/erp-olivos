@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Enums\OrderDeliveryModeEnum;
+use App\Models\Order;
 use App\Models\Category;
 use App\Models\Kardex;
 use App\Models\Product;
@@ -35,6 +37,18 @@ class DashboardController extends Controller
         $isAdmin = $user->is_super_admin || $user->hasRole(['Admin', 'admin', 'Administrador', 'administrador']);
         $isConsumer = $user->hasRole(['Consumidor', 'consumidor']) && !$isAdmin;
         $isWarehouse = $user->hasRole(['Almacén', 'almacen']) && !$isAdmin && !$isConsumer;
+        $isBodas = $user->hasRole(['Bodas', 'bodas']) && !$isAdmin;
+
+        if ($isBodas) {
+            return Inertia::render('Admin/BodasDashboard', [
+                'filters' => [
+                    'month' => $month,
+                    'year' => $year,
+                ],
+                'stats' => $this->getBodasStats($month, $year),
+                'recentOrders' => $this->getBodasRecentOrders(),
+            ]);
+        }
 
         if ($isConsumer) {
             return Inertia::render('Admin/ConsumerDashboard', [
@@ -434,6 +448,69 @@ class DashboardController extends Controller
                 'code' => $p->code,
                 'min_stock' => (float)$p->min_stock,
                 'total_stock' => (float)$p->total_stock,
+            ])
+            ->toArray();
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function getBodasStats(int $month, int $year): array
+    {
+        $today = now()->toDateString();
+
+        $monthQuery = Order::query()
+            ->whereYear('registered_at', $year)
+            ->whereMonth('registered_at', $month);
+
+        $totalMonthOrders = (clone $monthQuery)->count();
+        $activeMonthOrders = (clone $monthQuery)->where('status', 'registrado')->count();
+        $cancelledMonthOrders = (clone $monthQuery)->where('status', 'anulado')->count();
+
+        // Pedidos registrados en el día de hoy
+        $registeredToday = Order::query()
+            ->whereDate('registered_at', $today)
+            ->count();
+
+        return [
+            'registered_today' => $registeredToday,
+            'total_orders' => $totalMonthOrders,
+            'active_orders' => $activeMonthOrders,
+            'cancelled_orders' => $cancelledMonthOrders,
+        ];
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function getBodasRecentOrders(): array
+    {
+        return Order::query()
+            ->with([
+                'customer:id,full_name,phone',
+                'user:id,name',
+                'items:id,order_id,product_name,quantity,portions_or_size',
+            ])
+            ->withCount('items')
+            ->orderBy('created_at', 'desc')
+            ->limit(15)
+            ->get()
+            ->map(fn (Order $order) => [
+                'id' => $order->id,
+                'formatted_number' => $order->formatted_number,
+                'customer_name' => $order->customer?->full_name ?? 'Sin cliente',
+                'customer_phone' => $order->customer?->phone ?? '-',
+                'user_name' => $order->user?->name ?? 'Sistema',
+                'registered_at' => $order->registered_at?->format('d/m/Y') ?? '-',
+                'delivery_date' => $order->delivery_date?->format('d/m/Y') ?? '-',
+                'delivery_time' => $order->delivery_time,
+                'delivery_mode_label' => $order->delivery_mode instanceof OrderDeliveryModeEnum
+                    ? $order->delivery_mode->label()
+                    : (\App\Enums\OrderDeliveryModeEnum::tryFrom((string) $order->delivery_mode)?->label() ?? 'Recoger en tienda'),
+                'status' => $order->status,
+                'is_cancelled' => $order->isCancelled(),
+                'items_count' => $order->items_count,
+                'items_summary' => $order->items->map(fn ($it) => "{$it->quantity} {$it->product_name}")->join(', '),
             ])
             ->toArray();
     }

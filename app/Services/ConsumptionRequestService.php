@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\ConsumptionDetailFulfillmentEnum;
 use App\Enums\KardexMovementType;
 use App\Models\ConsumptionRequest;
 use App\Models\ConsumptionRequestDetail;
+use App\Models\ConsumptionRequestModification;
 use App\Models\Kardex;
 use App\Models\Stock;
 use App\Services\KardexService;
+use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Exception;
@@ -123,20 +126,41 @@ class ConsumptionRequestService
 
     /**
      * Cancela una solicitud de consumo interno.
+     * Orden global de bloqueos: solicitud -> modificación.
      */
     public function cancelRequest(ConsumptionRequest $consumptionRequest, string $notes): ConsumptionRequest
     {
-        if (in_array($consumptionRequest->status, ['entregado', 'despachado', 'despachado_parcial'])) {
-            throw new Exception("No se puede cancelar una solicitud que ya ha sido despachada o entregada.");
-        }
+        return DB::transaction(function () use ($consumptionRequest, $notes): ConsumptionRequest {
+            $lockedRequest = ConsumptionRequest::withoutGlobalScopes()
+                ->lockForUpdate()
+                ->findOrFail($consumptionRequest->id);
 
-        $consumptionRequest->status = 'cancelado';
-        $consumptionRequest->cancelled_by_user_id = Auth::id();
-        $consumptionRequest->cancelled_at = now();
-        $consumptionRequest->cancellation_notes = trim($notes);
-        $consumptionRequest->save();
+            $hasOpenMod = ConsumptionRequestModification::query()
+                ->where('consumption_request_id', $lockedRequest->id)
+                ->open()
+                ->orderBy('id')
+                ->select('id')
+                ->limit(1)
+                ->lockForUpdate()
+                ->get()
+                ->isNotEmpty();
 
-        return $consumptionRequest;
+            if ($hasOpenMod) {
+                throw new DomainException('No se puede cancelar la solicitud mientras tenga modificaciones abiertas.');
+            }
+
+            if (in_array($lockedRequest->status, ['entregado', 'despachado', 'despachado_parcial'], true)) {
+                throw new Exception('No se puede cancelar una solicitud que ya ha sido despachada o entregada.');
+            }
+
+            $lockedRequest->status = 'cancelado';
+            $lockedRequest->cancelled_by_user_id = Auth::id();
+            $lockedRequest->cancelled_at = now();
+            $lockedRequest->cancellation_notes = trim($notes);
+            $lockedRequest->save();
+
+            return $lockedRequest;
+        });
     }
 
     /**
@@ -183,36 +207,70 @@ class ConsumptionRequestService
         array $observations = [],
         array $receiveObservations = []
     ): ConsumptionRequest {
-        if (!in_array($consumptionRequest->status, ['despachado', 'despachado_parcial'])) {
-            throw new Exception("Solo se pueden recepcionar solicitudes en estado despachado.");
-        }
+        return DB::transaction(function () use ($consumptionRequest, $receivedQuantities, $observations, $receiveObservations): ConsumptionRequest {
+            // 1. Bloqueo de solicitud
+            $lockedRequest = ConsumptionRequest::withoutGlobalScopes()
+                ->lockForUpdate()
+                ->findOrFail($consumptionRequest->id);
 
-        return DB::transaction(function () use ($consumptionRequest, $receivedQuantities, $observations, $receiveObservations) {
-            $consumptionRequest->loadMissing('details.product');
+            // 2. Bloqueo de modificaciones abiertas
+            $hasOpenMod = ConsumptionRequestModification::query()
+                ->where('consumption_request_id', $lockedRequest->id)
+                ->open()
+                ->orderBy('id')
+                ->select('id')
+                ->limit(1)
+                ->lockForUpdate()
+                ->get()
+                ->isNotEmpty();
 
-            foreach ($consumptionRequest->details as $detail) {
+            if ($hasOpenMod) {
+                throw new DomainException(
+                    'No se puede confirmar la recepción mientras existan solicitudes de modificación abiertas o devoluciones pendientes.'
+                );
+            }
+
+            if (!in_array($lockedRequest->status, ['despachado', 'despachado_parcial'], true)) {
+                throw new Exception('Solo se pueden recepcionar solicitudes en estado despachado.');
+            }
+
+            // 3. Bloqueo de detalles en orden determinístico
+            $details = ConsumptionRequestDetail::query()
+                ->where('consumption_request_id', $lockedRequest->id)
+                ->with('product')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($details as $detail) {
+                if ($detail->fulfillment_status === ConsumptionDetailFulfillmentEnum::PendingReturn) {
+                    throw new DomainException(
+                        "El producto '{$detail->product?->name}' tiene una devolución física pendiente y no puede recepcionarse."
+                    );
+                }
+
                 $qty = isset($receivedQuantities[$detail->id]) ? (float) $receivedQuantities[$detail->id] : (float) $detail->quantity_delivered;
                 if ($qty < 0) {
-                    throw new Exception("La cantidad recibida no puede ser negativa.");
+                    throw new Exception('La cantidad recibida no puede ser negativa.');
                 }
 
                 $isDifferent = abs($qty - (float) $detail->quantity_requested) >= 0.01;
                 $observation = $observations[$detail->id] ?? null;
 
-                if ($isDifferent && empty(trim((string)$observation))) {
+                if ($isDifferent && empty(trim((string) $observation))) {
                     throw new Exception("Se requiere una observación porque la cantidad recibida para '{$detail->product?->name}' es diferente a la solicitada.");
                 }
 
                 $detail->quantity_received = $qty;
-                $detail->observation = $isDifferent ? trim((string)$observation) : $detail->observation;
-                $detail->receive_observation = trim((string)($receiveObservations[$detail->id] ?? '')) ?: null;
+                $detail->observation = $isDifferent ? trim((string) $observation) : $detail->observation;
+                $detail->receive_observation = trim((string) ($receiveObservations[$detail->id] ?? '')) ?: null;
                 $detail->save();
 
                 // Registrar salida en Kardex y debitar de stock solo en la entrega/recepción efectiva
                 $isInventoriable = $detail->product ? $detail->product->isInventoriable() : true;
                 if ($isInventoriable && $qty > 0) {
                     $productId = $detail->product_id;
-                    $warehouseId = $consumptionRequest->warehouse_id;
+                    $warehouseId = $lockedRequest->warehouse_id;
 
                     $lastKardex = Kardex::withoutGlobalScopes()
                         ->where('product_id', $productId)
@@ -228,19 +286,19 @@ class ConsumptionRequestService
                         quantity: $qty,
                         unitCost: $avgCost,
                         userId: Auth::id(),
-                        notes: "Entrega Conforme de Consumo Interno: {$consumptionRequest->requested_by}",
+                        notes: "Entrega Conforme de Consumo Interno: {$lockedRequest->requested_by}",
                         recordableType: ConsumptionRequest::class,
-                        recordableId: $consumptionRequest->id
+                        recordableId: $lockedRequest->id
                     );
                 }
             }
 
-            $consumptionRequest->status = 'entregado';
-            $consumptionRequest->received_by_user_id = Auth::id();
-            $consumptionRequest->received_at = now();
-            $consumptionRequest->save();
+            $lockedRequest->status = 'entregado';
+            $lockedRequest->received_by_user_id = Auth::id();
+            $lockedRequest->received_at = now();
+            $lockedRequest->save();
 
-            return $consumptionRequest;
+            return $lockedRequest;
         });
     }
 

@@ -58,6 +58,7 @@ class ConsumptionRequestController extends Controller
                 'details.product.unitOfMeasure',
                 'details.product.categories'
             ])
+            ->withCount('openModifications')
             ->orderBy('number', $order);
 
         // Si es consumidor, solo ve sus propias solicitudes
@@ -106,10 +107,17 @@ class ConsumptionRequestController extends Controller
         $areas = array_values(array_unique(array_merge($defaultAreas, $dbAreas)));
         sort($areas);
 
+        $pendingModificationsCount = $isAdmin
+            ? \App\Models\ConsumptionRequestModification::whereHas('consumptionRequest')
+                ->where('status', \App\Enums\ConsumptionModificationStatusEnum::Pending->value)
+                ->count()
+            : 0;
+
         return Inertia::render('Admin/ConsumptionRequest/Index', [
             'requests' => ConsumptionRequestResource::collection($requests),
             'areas' => $areas,
             'isAdmin' => $isAdmin,
+            'pendingModificationsCount' => $pendingModificationsCount,
             'filters' => [
                 'search' => $search,
                 'status' => $status,
@@ -414,12 +422,43 @@ class ConsumptionRequestController extends Controller
             'approvedByUser',
             'observedByUser',
             'cancelledByUser',
+            'openModifications',
+            'details.consumptionRequest',
             'details.product.stocks' => function($q) use ($consumptionRequest) {
                 $q->where('warehouse_id', $consumptionRequest->warehouse_id);
             },
             'details.product.unitOfMeasure',
-            'details.product.categories'
+            'details.product.categories',
+            'details.purchaseOrderDetails' => function ($q) {
+                $q->whereNull('cancelled_at')
+                    ->with(['purchaseOrder' => fn ($poQ) => $poQ->withoutGlobalScopes()->with(['provider', 'details'])]);
+            },
+            'details.openModification.fromProduct.unitOfMeasure',
+            'details.openModification.fromProduct.stocks',
+            'details.openModification.toProduct.unitOfMeasure',
+            'details.openModification.toProduct.stocks',
+            'details.openModification.requestedByUser',
+            'details.openModification.resolvedByUser',
+            'details.openModification.returns.returnedByUser',
+            'details.modifications.fromProduct.unitOfMeasure',
+            'details.modifications.fromProduct.stocks',
+            'details.modifications.toProduct.unitOfMeasure',
+            'details.modifications.toProduct.stocks',
+            'details.modifications.requestedByUser',
+            'details.modifications.resolvedByUser',
+            'details.modifications.cancelledByUser',
+            'details.modifications.returns.returnedByUser',
         ]);
+        foreach ($consumptionRequest->details as $d) {
+            if ($d->openModification) {
+                $d->openModification->setRelation('detail', $d);
+                $d->openModification->setRelation('consumptionRequest', $consumptionRequest);
+            }
+            foreach ($d->modifications as $m) {
+                $m->setRelation('detail', $d);
+                $m->setRelation('consumptionRequest', $consumptionRequest);
+            }
+        }
 
         $user = auth()->user();
         
@@ -452,7 +491,7 @@ class ConsumptionRequestController extends Controller
         }
 
         $request->validate([
-            'quantities' => 'required|array',
+            'quantities' => 'nullable|array',
             'quantities.*' => 'required|numeric|min:0',
             'observations' => 'nullable|array',
             'observations.*' => 'nullable|string',
@@ -463,14 +502,14 @@ class ConsumptionRequestController extends Controller
             $consumptionRequest->load(['details.product']);
             $updatedRequest = $this->consumptionRequestService->dispatchRequest(
                 $consumptionRequest,
-                $request->input('quantities'),
+                $request->input('quantities', []),
                 $request->input('observations', []),
                 $request->input('dispatch_observation')
             );
 
-            // Notificar al creador que su solicitud fue despachada
+            // Notificar al creador solo si se despachó efectivamente al menos una unidad
             $creator = $updatedRequest->user;
-            if ($creator && $creator->is_active) {
+            if ($creator && $creator->is_active && in_array($updatedRequest->status, ['despachado', 'despachado_parcial'], true)) {
                 $notification = new \App\Notifications\SolicitudConsumoDespachadaNotification($updatedRequest);
                 $creator->notify($notification);
 
@@ -492,9 +531,11 @@ class ConsumptionRequestController extends Controller
                 // Reverb no disponible — no interrumpir el flujo
             }
 
-            $msg = $updatedRequest->status === 'entregado'
-                ? 'Todos los productos fueron despachados exitosamente.'
-                : 'Se realizó un despacho parcial del stock disponible. Los productos restantes siguen pendientes.';
+            $msg = match ($updatedRequest->status) {
+                'despachado' => 'Todos los productos fueron despachados exitosamente.',
+                'despachado_parcial' => 'Se realizó un despacho parcial del stock disponible. Los productos restantes siguen pendientes.',
+                default => 'Se registró la falta de existencias y se generó la solicitud de compra correspondiente. La solicitud permanece aprobada en espera de stock.',
+            };
 
             return redirect()->back()->with('flash', [
                 'success' => $msg

@@ -20,10 +20,10 @@
             background-color: #ffffff;
         }
 
-        /* ─── CABECERA CORPORATIVA Y CONTROL ─── */
+        /* ─── CABECERA CORPORATIVA Y CONTROL (Paleta Oficial Los Olivos) ─── */
         .header-table {
             width: 100%;
-            border-bottom: 2.5px solid #0f766e;
+            border-bottom: 2.5px solid #73AC32;
             padding-bottom: 7px;
             margin-bottom: 9px;
         }
@@ -36,7 +36,7 @@
         .company-name {
             font-size: 11pt;
             font-weight: bold;
-            color: #0f766e;
+            color: #5C8C28;
             text-transform: uppercase;
             letter-spacing: 0.3px;
             margin: 0;
@@ -44,7 +44,7 @@
         }
         .company-sub {
             font-size: 7.5pt;
-            color: #64748b;
+            color: #6B6B67;
             margin-top: 2px;
             line-height: 1.2;
         }
@@ -53,7 +53,7 @@
         }
         .badge-reserva {
             display: inline-block;
-            background-color: #0f766e;
+            background-color: #73AC32;
             color: #ffffff;
             font-size: 10pt;
             font-weight: bold;
@@ -77,9 +77,9 @@
             vertical-align: middle;
         }
         .status-pill-active {
-            background-color: #ecfdf5;
-            color: #047857;
-            border: 1px solid #a7f3d0;
+            background-color: #F4F9EC;
+            color: #3F6B20;
+            border: 1px solid #D1E5B3;
         }
         .status-pill-cancelled {
             background-color: #fef2f2;
@@ -96,11 +96,11 @@
         }
         .meta-row {
             font-size: 7pt;
-            color: #64748b;
+            color: #6B6B67;
             margin-top: 2px;
         }
         .meta-row strong {
-            color: #334155;
+            color: #1F2937;
         }
 
         /* ─── BANNER DE ANULACIÓN ─── */
@@ -136,9 +136,9 @@
         }
         .info-cell {
             vertical-align: top;
-            background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-left: 3.5px solid #0f766e;
+            background-color: #FAF9F5;
+            border: 1px solid #E5E2D9;
+            border-left: 3.5px solid #73AC32;
             border-radius: 5px;
             padding: 6px 9px;
         }
@@ -147,15 +147,15 @@
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 0.7px;
-            color: #0f766e;
-            border-bottom: 1px solid #e2e8f0;
+            color: #5C8C28;
+            border-bottom: 1px solid #E5E2D9;
             padding-bottom: 2px;
             margin-bottom: 4px;
         }
         .field-value {
             font-size: 9pt;
             font-weight: bold;
-            color: #0f172a;
+            color: #080808;
             line-height: 1.25;
         }
         .field-subvalue {
@@ -165,7 +165,7 @@
             line-height: 1.3;
         }
         .sub-label {
-            color: #64748b;
+            color: #6B6B67;
             font-weight: bold;
         }
 
@@ -174,15 +174,15 @@
             font-size: 8pt;
             font-weight: bold;
             text-transform: uppercase;
-            color: #0f766e;
+            color: #5C8C28;
             letter-spacing: 0.6px;
-            border-bottom: 1px solid #cbd5e1;
+            border-bottom: 1px solid #D1E5B3;
             padding-bottom: 2px;
             margin-top: 8px;
             margin-bottom: 6px;
         }
         .item-card {
-            border: 1px solid #cbd5e1;
+            border: 1px solid #E5E2D9;
             border-radius: 5px;
             padding: 6px 9px;
             margin-bottom: 6px;
@@ -191,16 +191,16 @@
         .item-headline {
             font-size: 9pt;
             font-weight: bold;
-            color: #0f172a;
+            color: #080808;
             margin-bottom: 4px;
             padding-bottom: 3px;
-            border-bottom: 1px solid #f1f5f9;
+            border-bottom: 1px solid #FAF9F5;
         }
         .item-qty-badge {
             display: inline-block;
-            background-color: #f0fdfa;
-            color: #0f766e;
-            border: 1px solid #ccfbf1;
+            background-color: #F4F9EC;
+            color: #3F6B20;
+            border: 1px solid #D1E5B3;
             font-weight: bold;
             font-size: 8pt;
             padding: 1px 5px;
@@ -210,7 +210,7 @@
         .item-portions {
             font-weight: normal;
             font-size: 8pt;
-            color: #64748b;
+            color: #6B6B67;
         }
 
         .item-body-table {
@@ -228,29 +228,29 @@
             line-height: 1.3;
         }
         .details-list li strong {
-            color: #0f172a;
+            color: #080808;
         }
 
         .sub-box {
-            background-color: #f8fafc;
-            border-left: 3px solid #0f766e;
+            background-color: #FAF9F5;
+            border-left: 3px solid #73AC32;
             border-radius: 0 4px 4px 0;
             padding: 3.5px 7px;
             margin-top: 3.5px;
         }
         .sub-box-obs {
-            border-left-color: #64748b;
+            border-left-color: #8A8880;
         }
         .sub-box-title {
             font-weight: bold;
             font-size: 6.5pt;
             text-transform: uppercase;
-            color: #0f766e;
+            color: #5C8C28;
             letter-spacing: 0.4px;
             margin-bottom: 1px;
         }
         .sub-box-title-obs {
-            color: #475569;
+            color: #6B6B67;
         }
         .sub-box-content {
             font-size: 7.5pt;
@@ -260,8 +260,8 @@
 
         /* ─── PANEL DERECHO DE REFERENCIA Y FOTOS ─── */
         .reference-panel {
-            background-color: #fafaf9;
-            border: 1px solid #e7e5e4;
+            background-color: #FAF9F5;
+            border: 1px solid #E5E2D9;
             border-radius: 4px;
             padding: 5px;
             text-align: center;
@@ -287,7 +287,7 @@
         .photo-frame {
             display: inline-block;
             background-color: #ffffff;
-            border: 1px solid #cbd5e1;
+            border: 1px solid #E5E2D9;
             border-radius: 4px;
             padding: 2px;
             margin: 1px;
@@ -319,9 +319,9 @@
             letter-spacing: 0.3px;
         }
         .provider-negocio {
-            background-color: #ecfdf5;
-            color: #047857;
-            border: 1px solid #a7f3d0;
+            background-color: #F4F9EC;
+            color: #3F6B20;
+            border: 1px solid #D1E5B3;
         }
         .provider-cliente {
             background-color: #fef3c7;
@@ -333,8 +333,8 @@
         .notes-box {
             margin-top: 4px;
             padding: 5px 8px;
-            background-color: #f8fafc;
-            border-left: 3px solid #0f766e;
+            background-color: #FAF9F5;
+            border-left: 3px solid #73AC32;
             border-radius: 0 4px 4px 0;
             font-size: 7.5pt;
             color: #334155;
@@ -345,9 +345,11 @@
         .footer {
             margin-top: 10px;
             padding-top: 4px;
-            border-top: 1px solid #e2e8f0;
+            border-top: 1px solid #E5E2D9;
             font-size: 6.5pt;
-            color: #64748b;
+            color: #8A8880;
+            text-align: center;
+        }
             text-align: center;
         }
     </style>
@@ -465,7 +467,7 @@
             </td>
             <td class="info-cell" style="width: 50%;">
                 <div class="card-eyebrow">Logística de Entrega</div>
-                <div class="field-value" style="color: #0f766e;">{{ $deliveryDateFormatted }}</div>
+                <div class="field-value" style="color: #5C8C28;">{{ $deliveryDateFormatted }}</div>
                 <div class="field-subvalue">
                     <span class="sub-label">Modalidad:</span>
                     <strong>{{ $deliveryModeLabel }}</strong> · {{ $order->delivery_time }}

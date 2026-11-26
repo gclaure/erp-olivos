@@ -8,6 +8,7 @@ use App\Enums\OrderComplementProviderEnum;
 use App\Enums\OrderDeliveryModeEnum;
 use App\Facades\CompanyFacade;
 use App\Facades\OrderFacade;
+use App\Exports\OrdersExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Order\CancelOrderRequest;
 use App\Http\Requests\Admin\Order\StoreOrderPaymentRequest;
@@ -18,12 +19,15 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class OrderController extends Controller
 {
@@ -43,29 +47,7 @@ class OrderController extends Controller
         $customerId = $request->input('customer_id') ? (string) $request->input('customer_id') : null;
         $status = $request->input('status') ? (string) $request->input('status') : null;
 
-        $query = Order::query()
-            ->with([
-                'customer' => fn ($q) => $q->select('id', 'full_name', 'phone', 'address')->withCount('orders'),
-                'user:id,name',
-                'cancelledBy:id,name',
-                'items:id,order_id,product_name,quantity,portions_or_size',
-            ])
-            ->withCount(['items', 'attachments'])
-            ->search($search)
-            ->filterByRegisteredDate($registeredFrom, $registeredTo)
-            ->filterByDeliveryDate($deliveryFrom, $deliveryTo);
-
-        if ($deliveryMode !== null && $deliveryMode !== '') {
-            $query->where('delivery_mode', $deliveryMode);
-        }
-
-        if ($customerId !== null && $customerId !== '') {
-            $query->where('customer_id', $customerId);
-        }
-
-        if ($status !== null && $status !== '') {
-            $query->filterByStatus($status);
-        }
+        $query = $this->buildFilteredQuery($request);
 
         $orders = $query
             ->orderByDesc('number')
@@ -279,6 +261,63 @@ class OrderController extends Controller
         }
 
         return $pdf->stream($filename);
+    }
+
+    public function exportExcel(Request $request): BinaryFileResponse
+    {
+        $query = $this->buildFilteredQuery($request);
+
+        $summaryData = [
+            'total_orders' => (int) (clone $query)->count(),
+            'total_amount' => (float) (clone $query)->sum('total'),
+            'total_paid' => (float) (clone $query)->sum('paid_amount'),
+            'total_balance' => (float) (clone $query)->sum('balance_due'),
+        ];
+
+        $filename = 'reporte-pedidos-' . now()->format('Y-m-d_His') . '.xlsx';
+
+        return Excel::download(new OrdersExport($query->orderByDesc('number'), $summaryData), $filename);
+    }
+
+    /**
+     * @return Builder<Order>
+     */
+    private function buildFilteredQuery(Request $request): Builder
+    {
+        $search = $request->input('search') ? trim((string) $request->input('search')) : null;
+        $registeredFrom = $request->input('registered_from') ? (string) $request->input('registered_from') : null;
+        $registeredTo = $request->input('registered_to') ? (string) $request->input('registered_to') : null;
+        $deliveryFrom = $request->input('delivery_from') ? (string) $request->input('delivery_from') : null;
+        $deliveryTo = $request->input('delivery_to') ? (string) $request->input('delivery_to') : null;
+        $deliveryMode = $request->input('delivery_mode') ? (string) $request->input('delivery_mode') : null;
+        $customerId = $request->input('customer_id') ? (string) $request->input('customer_id') : null;
+        $status = $request->input('status') ? (string) $request->input('status') : null;
+
+        $query = Order::query()
+            ->with([
+                'customer' => fn ($q) => $q->select('id', 'full_name', 'phone', 'address')->withCount('orders'),
+                'user:id,name',
+                'cancelledBy:id,name',
+                'items:id,order_id,product_name,quantity,portions_or_size',
+            ])
+            ->withCount(['items', 'attachments'])
+            ->search($search)
+            ->filterByRegisteredDate($registeredFrom, $registeredTo)
+            ->filterByDeliveryDate($deliveryFrom, $deliveryTo);
+
+        if ($deliveryMode !== null && $deliveryMode !== '') {
+            $query->where('delivery_mode', $deliveryMode);
+        }
+
+        if ($customerId !== null && $customerId !== '') {
+            $query->where('customer_id', $customerId);
+        }
+
+        if ($status !== null && $status !== '') {
+            $query->filterByStatus($status);
+        }
+
+        return $query;
     }
 }
 

@@ -73,7 +73,7 @@ const getInitials = (name) => {
         <div class="bg-white dark:bg-secondary-800 text-zinc-900 dark:text-white max-h-[90vh] flex flex-col rounded-3xl overflow-hidden shadow-2xl">
             <!-- Estado de carga -->
             <div v-if="loading" class="py-24 flex flex-col items-center justify-center gap-3">
-                <span class="material-symbols-outlined text-4xl text-indigo-500 animate-spin">sync</span>
+                <span class="material-symbols-outlined text-4xl text-primary-500 animate-spin">sync</span>
                 <p class="text-xs font-black uppercase tracking-widest text-zinc-400 dark:text-secondary-400">
                     Cargando detalle de la reserva...
                 </p>
@@ -87,7 +87,7 @@ const getInitials = (name) => {
                             class="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0"
                             :class="order.is_cancelled
                                 ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400'
-                                : 'bg-indigo-600 text-white'"
+                                : 'bg-primary-600 text-white'"
                         >
                             <span class="material-symbols-outlined text-2xl">
                                 {{ order.is_cancelled ? 'cancel' : 'receipt_long' }}
@@ -95,7 +95,7 @@ const getInitials = (name) => {
                         </div>
                         <div>
                             <div class="flex items-center gap-2 flex-wrap">
-                                <span class="px-2.5 py-0.5 rounded-lg bg-indigo-600 text-white text-xs font-black uppercase tracking-wider">
+                                <span class="px-2.5 py-0.5 rounded-lg bg-primary-600 text-white text-xs font-black uppercase tracking-wider">
                                     Reserva #{{ order.formatted_number }}
                                 </span>
                                 <span
@@ -181,14 +181,14 @@ const getInitials = (name) => {
                             <div>
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-400 uppercase tracking-widest flex items-center gap-1">
-                                        <span class="material-symbols-outlined text-sm text-indigo-500">person</span>
+                                        <span class="material-symbols-outlined text-sm text-primary-500">person</span>
                                         Datos del Cliente
                                     </span>
                                     <button
                                         v-if="order.customer?.id"
                                         type="button"
                                         @click="emit('filter-by-customer', order.customer)"
-                                        class="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:underline"
+                                        class="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-primary-600 dark:text-primary-400 hover:underline"
                                     >
                                         <span class="material-symbols-outlined text-xs">history</span>
                                         {{ order.customer.orders_count || 1 }} pedidos
@@ -196,7 +196,7 @@ const getInitials = (name) => {
                                 </div>
 
                                 <div class="flex items-center gap-3 mt-1">
-                                    <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-xs flex-shrink-0">
+                                    <div class="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center font-black text-sm shadow-xs flex-shrink-0">
                                         {{ getInitials(order.customer?.full_name) }}
                                     </div>
                                     <div class="min-w-0">
@@ -216,7 +216,7 @@ const getInitials = (name) => {
                                     :href="`tel:${cleanPhone(order.customer.phone)}`"
                                     class="inline-flex items-center justify-center gap-1 h-8 px-3 rounded-lg bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 text-[11px] font-bold text-zinc-700 dark:text-secondary-200 hover:bg-zinc-100 dark:hover:bg-secondary-700 transition-colors"
                                 >
-                                    <span class="material-symbols-outlined text-sm text-indigo-500">call</span>
+                                    <span class="material-symbols-outlined text-sm text-primary-500">call</span>
                                     Llamar
                                 </a>
                                 <a
@@ -234,13 +234,13 @@ const getInitials = (name) => {
                         <!-- 2. Tarjeta Logística y Entrega -->
                         <div class="p-4 sm:p-5 rounded-2xl bg-zinc-50 dark:bg-secondary-900/60 border border-zinc-200/70 dark:border-secondary-700 space-y-3">
                             <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-400 uppercase tracking-widest flex items-center gap-1">
-                                <span class="material-symbols-outlined text-sm text-indigo-500">local_shipping</span>
+                                <span class="material-symbols-outlined text-sm text-primary-500">local_shipping</span>
                                 Programación y Entrega
                             </span>
 
                             <div class="space-y-2">
                                 <div class="flex items-center gap-2.5">
-                                    <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                                    <div class="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-950/50 text-primary-600 dark:text-primary-400 flex items-center justify-center flex-shrink-0">
                                         <span class="material-symbols-outlined text-base">event</span>
                                     </div>
                                     <div>
@@ -254,7 +254,7 @@ const getInitials = (name) => {
                                 </div>
 
                                 <div class="flex items-center gap-2.5">
-                                    <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                                    <div class="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-950/50 text-primary-600 dark:text-primary-400 flex items-center justify-center flex-shrink-0">
                                         <span class="material-symbols-outlined text-base">schedule</span>
                                     </div>
                                     <div class="flex items-center gap-2 flex-wrap">
@@ -268,7 +268,7 @@ const getInitials = (name) => {
                                                     class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border"
                                                     :class="order.delivery_mode === 'delivery'
                                                         ? 'bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/60'
-                                                        : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60'"
+                                                        : 'bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-800/60'"
                                                 >
                                                     {{ order.delivery_mode_label }}
                                                 </span>
@@ -297,7 +297,7 @@ const getInitials = (name) => {
                     <!-- Productos Solicitados (Comanda Técnica) -->
                     <div class="space-y-3.5">
                         <div class="flex items-center justify-between border-b border-zinc-200 dark:border-secondary-700 pb-2.5">
-                            <h3 class="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                            <h3 class="text-xs font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 flex items-center gap-1.5">
                                 <span class="material-symbols-outlined text-base">bakery_dining</span>
                                 Productos Solicitados ({{ order.items?.length || 0 }})
                             </h3>
@@ -315,14 +315,14 @@ const getInitials = (name) => {
                                 <!-- Encabezado del Producto -->
                                 <div class="flex items-start justify-between gap-3 border-b border-zinc-100 dark:border-secondary-800 pb-3">
                                     <div class="flex items-center gap-2.5">
-                                        <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-xl bg-indigo-600 text-white text-xs font-black shadow-xs">
+                                        <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-xl bg-primary-600 text-white text-xs font-black shadow-xs">
                                             {{ formatQuantity(item.quantity) }} un.
                                         </span>
                                         <div>
                                             <div class="text-sm sm:text-base font-black text-zinc-900 dark:text-white uppercase">
                                                 {{ item.product_name }}
                                             </div>
-                                            <div v-if="item.portions_or_size" class="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                            <div v-if="item.portions_or_size" class="text-xs font-bold text-primary-600 dark:text-primary-400">
                                                 Tamaño / Porciones: {{ item.portions_or_size }}
                                             </div>
                                         </div>
@@ -347,8 +347,8 @@ const getInitials = (name) => {
                                 </div>
 
                                 <!-- Decoración Personalizada -->
-                                <div v-if="item.custom_description" class="rounded-xl border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/30 p-3.5 space-y-1">
-                                    <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                                <div v-if="item.custom_description" class="rounded-xl border border-primary-200 dark:border-primary-900/50 bg-primary-50/50 dark:bg-primary-950/30 p-3.5 space-y-1">
+                                    <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary-700 dark:text-primary-300">
                                         <span class="material-symbols-outlined text-sm">palette</span>
                                         Decoración Solicitada
                                     </div>
@@ -388,7 +388,7 @@ const getInitials = (name) => {
                                                 :key="att.id"
                                                 type="button"
                                                 @click="activeLightboxImage = att.file_url"
-                                                class="group relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-secondary-700 bg-zinc-100 dark:bg-secondary-900 aspect-square focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                                                class="group relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-secondary-700 bg-zinc-100 dark:bg-secondary-900 aspect-square focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                                                 title="Hacer clic para ampliar imagen"
                                             >
                                                 <img
@@ -414,7 +414,7 @@ const getInitials = (name) => {
                     <!-- Complementos Adicionales -->
                     <div v-if="allComplements.length" class="space-y-2.5">
                         <div class="flex items-center justify-between border-b border-zinc-200 dark:border-secondary-700 pb-2">
-                            <h3 class="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                            <h3 class="text-xs font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 flex items-center gap-1.5">
                                 <span class="material-symbols-outlined text-base">extension</span>
                                 Complementos y Accesorios ({{ allComplements.length }})
                             </h3>
@@ -435,7 +435,7 @@ const getInitials = (name) => {
                                 <span
                                     class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex-shrink-0 border"
                                     :class="comp.provider_type === 'business'
-                                        ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/40'
+                                        ? 'bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-800/40'
                                         : 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/40'"
                                 >
                                     <span class="material-symbols-outlined text-xs">
@@ -449,7 +449,7 @@ const getInitials = (name) => {
 
                     <!-- Observaciones de la Reserva -->
                     <div v-if="order.general_notes" class="space-y-2">
-                        <h3 class="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 border-b border-zinc-200 dark:border-secondary-700 pb-2 flex items-center gap-1.5">
+                        <h3 class="text-xs font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 border-b border-zinc-200 dark:border-secondary-700 pb-2 flex items-center gap-1.5">
                             <span class="material-symbols-outlined text-base">sticky_note_2</span>
                             Observaciones Generales de la Reserva
                         </h3>
@@ -461,7 +461,7 @@ const getInitials = (name) => {
                     <!-- Pedidos Anteriores del Cliente -->
                     <div v-if="previousOrders?.length" class="space-y-2.5 pt-2">
                         <h3 class="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-secondary-400 flex items-center gap-1">
-                            <span class="material-symbols-outlined text-xs text-indigo-500">history</span>
+                            <span class="material-symbols-outlined text-xs text-primary-500">history</span>
                             Otras Reservas Registradas de {{ order.customer?.full_name }} ({{ previousOrders.length }})
                         </h3>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -470,10 +470,10 @@ const getInitials = (name) => {
                                 :key="prev.id"
                                 type="button"
                                 @click="emit('select-order', prev.id)"
-                                class="flex items-center justify-between p-3 rounded-2xl border border-zinc-200 dark:border-secondary-700 hover:border-indigo-500 dark:hover:border-indigo-500 bg-white dark:bg-secondary-900/50 dark:hover:bg-secondary-700/60 transition-colors text-left group"
+                                class="flex items-center justify-between p-3 rounded-2xl border border-zinc-200 dark:border-secondary-700 hover:border-primary-500 dark:hover:border-primary-500 bg-white dark:bg-secondary-900/50 dark:hover:bg-secondary-700/60 transition-colors text-left group"
                             >
                                 <div>
-                                    <div class="text-xs font-black text-indigo-600 dark:text-indigo-400 group-hover:underline">
+                                    <div class="text-xs font-black text-primary-600 dark:text-primary-400 group-hover:underline">
                                         Reserva #{{ prev.formatted_number }}
                                     </div>
                                     <div class="text-[11px] text-zinc-500 dark:text-secondary-400">
@@ -506,7 +506,7 @@ const getInitials = (name) => {
                     </button>
                     <a
                         :href="route('admin.orders.receipt-pdf', { order: order.id, download: 1 })"
-                        class="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+                        class="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
                     >
                         <span class="material-symbols-outlined text-base">download</span>
                         <span>Descargar Comprobante PDF</span>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\ConsumptionModificationStatusEnum;
 use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -84,6 +85,22 @@ class ConsumptionRequest extends Model
     public function details(): HasMany
     {
         return $this->hasMany(ConsumptionRequestDetail::class);
+    }
+
+    public function modifications(): HasMany
+    {
+        return $this->hasMany(ConsumptionRequestModification::class);
+    }
+
+    public function openModifications(): HasMany
+    {
+        return $this->hasMany(ConsumptionRequestModification::class)
+            ->whereIn('status', ConsumptionModificationStatusEnum::openValues());
+    }
+
+    public function purchaseOrders(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class);
     }
 
     /**

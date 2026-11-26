@@ -19,6 +19,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $permissions = [
             'create-consumption' => 'Registrar Consumo',
             'manage-consumption' => 'Gestionar Consumos',
+            'request-consumption-modification' => 'Solicitar Modificación de Consumo',
+            'approve-consumption-modification' => 'Aprobar Modificación de Consumo',
             'manage-inventory'   => 'Gestionar Inventario',
             'manage-products'    => 'Gestionar Productos',
             'manage-categories'  => 'Gestionar Categorías',
@@ -31,6 +33,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-company'     => 'Gestionar Datos de Empresa',
             'manage-branches'    => 'Administrar Sucursales',
             'view-reports'       => 'Ver Reportes BI',
+            'manage-orders'      => 'Gestionar Pedidos',
         ];
 
         foreach ($permissions as $name => $label) {
@@ -54,6 +57,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-warehouses',
             'manage-inventory',
             'manage-consumption',
+            'request-consumption-modification',
             'manage-purchases',
             'manage-providers',
         ]);
@@ -62,6 +66,12 @@ class RolesAndPermissionsSeeder extends Seeder
         $consumerRole = Role::firstOrCreate(['name' => 'Consumidor', 'guard_name' => 'web']);
         $consumerRole->syncPermissions([
             'create-consumption',
+        ]);
+
+        // 5. Bodas (Gestión de Pedidos y Reservas)
+        $bodasRole = Role::firstOrCreate(['name' => 'Bodas', 'guard_name' => 'web']);
+        $bodasRole->syncPermissions([
+            'manage-orders',
         ]);
     }
 }

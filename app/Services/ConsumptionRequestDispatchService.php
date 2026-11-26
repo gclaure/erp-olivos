@@ -4,20 +4,33 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Enums\KardexMovementType;
+use App\Enums\ConsumptionDetailFulfillmentEnum;
 use App\Models\ConsumptionRequest;
+use App\Models\ConsumptionRequestDetail;
+use App\Models\ConsumptionRequestModification;
+use App\Models\Provider;
+use App\Models\PurchaseOrderDetail;
 use App\Models\Stock;
-use App\Models\Kardex;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
+use DomainException;
 use Exception;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class ConsumptionRequestDispatchService
 {
-    public function __construct(private KardexService $kardexService) {}
+    public function __construct(
+        private KardexService $kardexService,
+        private ConsumptionRequestStatusResolver $statusResolver
+    ) {}
 
     /**
      * Despacha el stock físico disponible para una solicitud de consumo.
+     * Orden global de bloqueos: solicitud -> modificación -> detalle -> compra.
+     *
+     * @param array<string, float|int|string> $dispatchQuantities
+     * @param array<string, string|null> $observations
      */
     public function dispatch(
         ConsumptionRequest $consumptionRequest,
@@ -25,29 +38,70 @@ class ConsumptionRequestDispatchService
         array $observations = [],
         ?string $dispatchObservation = null
     ): ConsumptionRequest {
-        if (!in_array($consumptionRequest->status, ['aprobado', 'despachado_parcial'], true)) {
-            throw new Exception("Solo se pueden despachar solicitudes aprobadas o con despacho parcial.");
-        }
+        return DB::transaction(function () use ($consumptionRequest, $dispatchQuantities, $observations, $dispatchObservation): ConsumptionRequest {
+            // 1. Bloqueo de solicitud
+            $lockedRequest = ConsumptionRequest::withoutGlobalScopes()
+                ->lockForUpdate()
+                ->findOrFail($consumptionRequest->id);
 
-        return DB::transaction(function () use ($consumptionRequest, $dispatchQuantities, $observations, $dispatchObservation) {
-            $consumptionRequest->loadMissing('details.product');
-            $warehouseId = $consumptionRequest->warehouse_id;
-            $allDispatchedCompletely = true;
+            if (!in_array($lockedRequest->status, ['aprobado', 'despachado_parcial'], true)) {
+                throw new Exception('Solo se pueden despachar solicitudes aprobadas o con despacho parcial.');
+            }
+
+            // 2. Bloqueo de modificaciones abiertas de la solicitud
+            $openModDetailIds = ConsumptionRequestModification::query()
+                ->where('consumption_request_id', $lockedRequest->id)
+                ->open()
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('consumption_request_detail_id')
+                ->all();
+
+            // 3. Bloqueo de detalles en orden determinístico
+            $details = ConsumptionRequestDetail::query()
+                ->where('consumption_request_id', $lockedRequest->id)
+                ->with('product')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            $warehouseId = $lockedRequest->warehouse_id;
             $missingItems = [];
 
-            foreach ($consumptionRequest->details as $detail) {
+            foreach ($details as $detail) {
+                $hasOpenModification = in_array($detail->id, $openModDetailIds, true);
+                $isPendingReturn = $detail->fulfillment_status === ConsumptionDetailFulfillmentEnum::PendingReturn;
+
+                if ($hasOpenModification || $isPendingReturn) {
+                    $attemptedQty = isset($dispatchQuantities[$detail->id])
+                        ? (float) $dispatchQuantities[$detail->id]
+                        : 0.0;
+
+                    if ($attemptedQty > 0.00001) {
+                        $reason = $isPendingReturn ? 'devolución física pendiente' : 'modificación abierta';
+                        throw new DomainException(
+                            "No se puede despachar el producto '{$detail->product?->name}' mientras tenga una {$reason}."
+                        );
+                    }
+
+                    continue;
+                }
+
                 $productId = $detail->product_id;
                 $requestedQty = (float) $detail->quantity_requested;
                 $alreadyDelivered = (float) $detail->quantity_delivered;
                 $pendingQty = $requestedQty - $alreadyDelivered;
 
-                if ($pendingQty <= 0) {
-                    continue; // Ya entregado completamente
+                if ($pendingQty <= 0.00001) {
+                    if ($detail->fulfillment_status === ConsumptionDetailFulfillmentEnum::PendingStock) {
+                        $detail->fulfillment_status = ConsumptionDetailFulfillmentEnum::Normal;
+                        $detail->save();
+                    }
+                    continue;
                 }
 
                 $isInventoriable = $detail->product ? $detail->product->isInventoriable() : true;
 
-                // Obtener stock disponible en el almacén
                 if ($isInventoriable) {
                     $stock = Stock::withoutGlobalScopes()
                         ->where('warehouse_id', $warehouseId)
@@ -59,8 +113,7 @@ class ConsumptionRequestDispatchService
                     $availableStock = 999999.0;
                 }
 
-                // Calcular cantidad a entregar en esta ronda
-                if (isset($dispatchQuantities[$detail->id])) {
+                if (array_key_exists($detail->id, $dispatchQuantities)) {
                     $dispatchQty = (float) $dispatchQuantities[$detail->id];
                 } else {
                     $dispatchQty = min($pendingQty, $availableStock);
@@ -70,103 +123,133 @@ class ConsumptionRequestDispatchService
                     throw new Exception("La cantidad a despachar para '{$detail->product?->name}' no puede ser negativa.");
                 }
 
-                // Si la cantidad a despachar supera lo pendiente o lo disponible en almacén, requiere observación
-                $exceedsPending = $dispatchQty > $pendingQty;
-                $exceedsStock = $isInventoriable && ($dispatchQty > $availableStock);
+                $exceedsPending = ($dispatchQty - $pendingQty) > 0.0001;
+                $exceedsStock = $isInventoriable && (($dispatchQty - $availableStock) > 0.0001);
 
                 if ($exceedsPending || $exceedsStock) {
                     $obs = $observations[$detail->id] ?? null;
-                    if (empty(trim((string)$obs)) || strlen(trim((string)$obs)) < 3) {
-                        $msg = $exceedsStock 
+                    if (empty(trim((string) $obs)) || strlen(trim((string) $obs)) < 3) {
+                        $msg = $exceedsStock
                             ? "Debe ingresar una observación/motivo de al menos 3 caracteres justificando el despacho para '{$detail->product?->name}' porque supera el stock disponible ({$availableStock})."
                             : "Debe ingresar una observación/motivo de al menos 3 caracteres justificando el despacho para '{$detail->product?->name}' porque supera la cantidad pendiente ({$pendingQty}).";
                         throw new Exception($msg);
                     }
-                    $detail->observation = trim((string)$obs);
+                    $detail->observation = trim((string) $obs);
                 } else {
-                    // Si viene una observación opcional, la guardamos
                     $obs = $observations[$detail->id] ?? null;
                     if (!empty($obs)) {
-                        $detail->observation = trim((string)$obs);
+                        $detail->observation = trim((string) $obs);
                     }
                 }
+
+                $newDelivered = $alreadyDelivered + $dispatchQty;
+                $missingQty = max(0.0, $requestedQty - $newDelivered);
 
                 if ($dispatchQty > 0) {
-                    // Actualizar la cantidad entregada/preparada sin alterar Kardex aún
-                    $detail->quantity_delivered = $alreadyDelivered + $dispatchQty;
-                    $detail->save();
+                    $detail->quantity_delivered = $newDelivered;
                 }
 
-                // Calcular el faltante real
-                $newDelivered = $detail->quantity_delivered;
-                $missingQty = $requestedQty - $newDelivered;
+                // Ciclo de vida de pending_stock:
+                // - Si queda completo o recibió unidades en este despacho -> normal
+                // - Si sigue con faltante y stock disponible es 0 -> pending_stock
+                if ($missingQty <= 0.00001 || $dispatchQty > 0.00001) {
+                    $detail->fulfillment_status = ConsumptionDetailFulfillmentEnum::Normal;
+                } elseif ($availableStock <= 0.00001) {
+                    $detail->fulfillment_status = ConsumptionDetailFulfillmentEnum::PendingStock;
+                }
 
-                if ($missingQty > 0) {
-                    $allDispatchedCompletely = false;
-                    
-                    // Obtener precio estimado (costo promedio o precio del producto)
-                    $price = (float) ($detail->product->kardexes()->latest()->first()?->unit_cost ?? $detail->product->price ?? 0.0);
-                    $subtotal = $missingQty * $price;
+                $detail->save();
 
-                    $missingItems[] = [
-                        'product_id' => $productId,
-                        'quantity' => $missingQty,
-                        'unit_price' => $price,
-                        'subtotal' => $subtotal,
-                    ];
+                if ($missingQty > 0.00001) {
+                    // 4. Bloqueo de líneas de compra abiertas asociadas al mismo detalle y producto
+                    $openPoLines = PurchaseOrderDetail::query()
+                        ->where('consumption_request_detail_id', $detail->id)
+                        ->where('product_id', $productId)
+                        ->whereNull('cancelled_at')
+                        ->whereHas('purchaseOrder', static function ($q): void {
+                            $q->withoutGlobalScopes()->whereIn('status', ['pendiente', 'aprobada']);
+                        })
+                        ->orderBy('id')
+                        ->lockForUpdate()
+                        ->get(['id', 'quantity']);
+
+                    $coveredDecimal = BigDecimal::zero();
+                    foreach ($openPoLines as $poLine) {
+                        $coveredDecimal = $coveredDecimal->plus(BigDecimal::of((string) $poLine->quantity));
+                    }
+
+                    $missingDecimal = BigDecimal::of((string) $missingQty)->toScale(4, RoundingMode::HALF_UP);
+                    $uncoveredDecimal = $missingDecimal->minus($coveredDecimal);
+
+                    if ($uncoveredDecimal->isGreaterThan(BigDecimal::of('0.0001'))) {
+                        $uncoveredQty = (float) (string) $uncoveredDecimal->toScale(4, RoundingMode::HALF_UP);
+                        $price = (float) ($detail->product?->kardexes()->latest()->first()?->unit_cost ?? $detail->product?->price ?? 0.0);
+                        $subtotal = $uncoveredQty * $price;
+
+                        $missingItems[] = [
+                            'product_id' => $productId,
+                            'consumption_request_detail_id' => $detail->id,
+                            'quantity' => $uncoveredQty,
+                            'unit_price' => $price,
+                            'subtotal' => $subtotal,
+                        ];
+                    }
                 }
             }
 
-            // Actualizar estado de la solicitud
-            if ($allDispatchedCompletely) {
-                $consumptionRequest->status = 'despachado';
-            } else {
-                $consumptionRequest->status = 'despachado_parcial';
-
-                // Generar automáticamente la Solicitud de Compra (PurchaseOrder)
-                if (!empty($missingItems)) {
-                    // Obtener primer proveedor activo
-                    $provider = \App\Models\Provider::where('is_active', true)->first();
-                    if (!$provider) {
-                        $provider = \App\Models\Provider::firstOrCreate(
-                            ['document_number' => '0000000000'],
-                            [
-                                'name' => 'Proveedor Genérico',
-                                'is_active' => true,
-                            ]
-                        );
-                    }
-
-                    $orderTotal = 0.0;
-                    foreach ($missingItems as $item) {
-                        $orderTotal += $item['subtotal'];
-                    }
-
-                    $orderData = [
-                        'provider_id' => $provider->id,
-                        'warehouse_id' => $warehouseId,
-                        'user_id' => Auth::id() ?? $consumptionRequest->user_id,
-                        'date' => now()->toDateString(),
-                        'notes' => "Generada automáticamente por faltantes en Solicitud de Consumo #{$consumptionRequest->id} de {$consumptionRequest->requested_by}",
-                        'total' => $orderTotal,
-                    ];
-
-                    $purchaseOrderService = app(\App\Services\PurchaseOrderService::class);
-                    $purchaseOrderService->create($orderData, $missingItems);
+            if (!empty($missingItems)) {
+                $provider = Provider::where('is_active', true)->first();
+                if (!$provider) {
+                    $provider = Provider::firstOrCreate(
+                        ['document_number' => '0000000000'],
+                        [
+                            'name' => 'Proveedor Genérico',
+                            'is_active' => true,
+                        ]
+                    );
                 }
+
+                $orderTotal = 0.0;
+                foreach ($missingItems as $item) {
+                    $orderTotal += $item['subtotal'];
+                }
+
+                $orderData = [
+                    'provider_id' => $provider->id,
+                    'warehouse_id' => $warehouseId,
+                    'user_id' => Auth::id() ?? $lockedRequest->user_id,
+                    'consumption_request_id' => $lockedRequest->id,
+                    'date' => now()->toDateString(),
+                    'notes' => "Generada automáticamente por faltantes en Solicitud de Consumo #{$lockedRequest->formatted_number} de {$lockedRequest->requested_by}",
+                    'total' => $orderTotal,
+                ];
+
+                $purchaseOrderService = app(PurchaseOrderService::class);
+                $purchaseOrderService->create($orderData, $missingItems);
             }
 
-            $consumptionRequest->dispatched_by_user_id = Auth::id();
-            $consumptionRequest->dispatched_at = now();
-            $consumptionRequest->dispatch_observation = $dispatchObservation ? trim($dispatchObservation) : null;
-            $consumptionRequest->save();
+            $newStatus = $this->statusResolver->resolve($lockedRequest, $details);
+            $lockedRequest->status = $newStatus;
 
-            return $consumptionRequest;
+            if (in_array($newStatus, ['despachado', 'despachado_parcial'], true)) {
+                $lockedRequest->dispatched_by_user_id = Auth::id();
+                $lockedRequest->dispatched_at = now();
+            }
+
+            if ($dispatchObservation !== null && trim($dispatchObservation) !== '') {
+                $lockedRequest->dispatch_observation = trim($dispatchObservation);
+            }
+
+            $lockedRequest->save();
+
+            return $lockedRequest->fresh(['warehouse', 'user', 'details.product']);
         });
     }
 
     /**
-     * Obtiene el listado de productos faltantes y sus cantidades.
+     * Obtiene el listado de productos faltantes y sus cantidades no cubiertas por compras abiertas.
+     *
+     * @return array<int, array<string, float|string|null>>
      */
     public function getMissingItems(ConsumptionRequest $consumptionRequest): array
     {
@@ -174,11 +257,15 @@ class ConsumptionRequestDispatchService
         $missingItems = [];
 
         foreach ($consumptionRequest->details as $detail) {
+            if ($detail->fulfillment_status === ConsumptionDetailFulfillmentEnum::PendingReturn) {
+                continue;
+            }
+
             $requestedQty = (float) $detail->quantity_requested;
             $alreadyDelivered = (float) $detail->quantity_delivered;
             $pendingQty = $requestedQty - $alreadyDelivered;
 
-            if ($pendingQty <= 0) {
+            if ($pendingQty <= 0.00001) {
                 continue;
             }
 
@@ -190,14 +277,28 @@ class ConsumptionRequestDispatchService
             $availableStock = $stock ? (float) $stock->quantity : 0.0;
             $missingQty = max(0.0, $pendingQty - $availableStock);
 
-            if ($missingQty > 0) {
-                $missingItems[] = [
-                    'product_id' => $detail->product_id,
-                    'product_name' => $detail->product->name,
-                    'product_code' => $detail->product->code,
-                    'quantity' => $missingQty,
-                    'unit_price' => (float) ($detail->product->kardexes()->latest()->first()?->unit_cost ?? $detail->product->price ?? 0.0),
-                ];
+            if ($missingQty > 0.00001) {
+                $coveredQty = (float) PurchaseOrderDetail::query()
+                    ->where('consumption_request_detail_id', $detail->id)
+                    ->where('product_id', $detail->product_id)
+                    ->whereNull('cancelled_at')
+                    ->whereHas('purchaseOrder', static function ($q): void {
+                        $q->withoutGlobalScopes()->whereIn('status', ['pendiente', 'aprobada']);
+                    })
+                    ->sum('quantity');
+
+                $uncoveredQty = max(0.0, $missingQty - $coveredQty);
+
+                if ($uncoveredQty > 0.00001) {
+                    $missingItems[] = [
+                        'product_id' => $detail->product_id,
+                        'consumption_request_detail_id' => $detail->id,
+                        'product_name' => $detail->product?->name,
+                        'product_code' => $detail->product?->code,
+                        'quantity' => $uncoveredQty,
+                        'unit_price' => (float) ($detail->product?->kardexes()->latest()->first()?->unit_cost ?? $detail->product?->price ?? 0.0),
+                    ];
+                }
             }
         }
 

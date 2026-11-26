@@ -245,12 +245,21 @@ const submitApprove = () => {
                             </thead>
                             <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
                                 <tr v-for="item in record.details" :key="item.id"
-                                    class="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors">
+                                    class="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors"
+                                    :class="item.is_cancelled ? 'opacity-60 bg-rose-50/30 dark:bg-rose-950/10' : ''">
                                     <td class="px-6 py-4 font-bold text-zinc-400 dark:text-zinc-500">
                                         {{ item.product_code || '—' }}
                                     </td>
                                     <td class="px-6 py-4 font-black text-zinc-900 dark:text-white">
-                                        {{ item.product_name }}
+                                        <div class="flex items-center gap-2">
+                                            <span :class="item.is_cancelled ? 'line-through' : ''">{{ item.product_name }}</span>
+                                            <span v-if="item.is_cancelled" class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                                Línea Cancelada
+                                            </span>
+                                        </div>
+                                        <p v-if="item.is_cancelled && item.cancellation_reason" class="text-[10px] font-semibold text-rose-600 dark:text-rose-400 mt-0.5">
+                                            Motivo: {{ item.cancellation_reason }}
+                                        </p>
                                     </td>
                                     <td class="px-6 py-4 text-center font-semibold text-zinc-500 dark:text-zinc-400">
                                         {{ item.unit_of_measure || 'Unidades' }}

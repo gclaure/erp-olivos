@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,12 +12,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseOrder extends Model
 {
-use HasUuids, \App\Traits\BranchScoped;
+    use HasUuids, BranchScoped;
 
     protected $fillable = [
         'provider_id',
         'warehouse_id',
         'user_id',
+        'consumption_request_id',
         'date',
         'status',
         'notes',
@@ -43,8 +45,18 @@ use HasUuids, \App\Traits\BranchScoped;
         return $this->belongsTo(User::class);
     }
 
+    public function consumptionRequest(): BelongsTo
+    {
+        return $this->belongsTo(ConsumptionRequest::class);
+    }
+
     public function details(): HasMany
     {
         return $this->hasMany(PurchaseOrderDetail::class);
+    }
+
+    public function activeDetails(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderDetail::class)->whereNull('cancelled_at');
     }
 }

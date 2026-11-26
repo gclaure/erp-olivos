@@ -3,6 +3,10 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Swal from 'sweetalert2';
+import RequestModificationModal from '@/Components/ConsumptionModification/RequestModificationModal.vue';
+import ResolveModificationModal from '@/Components/ConsumptionModification/ResolveModificationModal.vue';
+import RecordReturnModal from '@/Components/ConsumptionModification/RecordReturnModal.vue';
+import ModificationHistoryCard from '@/Components/ConsumptionModification/ModificationHistoryCard.vue';
 
 const props = defineProps({
     consumptionRequest: Object,
@@ -33,12 +37,71 @@ const isConsumidorRole = computed(() => {
     return roles.includes('Consumidor') || roles.includes('consumidor');
 });
 
+const userPermissions = computed(() => page.props.auth?.user?.permissions || []);
+
+const canRequestModification = computed(() => {
+    return (
+        isAdmin.value ||
+        isWarehouseRole.value ||
+        userPermissions.value.includes('request-consumption-modification')
+    );
+});
+
+const canApproveModification = computed(() => {
+    return isAdmin.value || userPermissions.value.includes('approve-consumption-modification');
+});
+
+const isRequestEditableForModification = computed(() => {
+    return ['aprobado', 'despachado', 'despachado_parcial'].includes(request.value?.status);
+});
+
+const showRequestModModal = ref(false);
+const selectedDetailForMod = ref(null);
+const showResolveModModal = ref(false);
+const selectedModToResolve = ref(null);
+const showReturnModModal = ref(false);
+const selectedModForReturn = ref(null);
+
+const reloadRequest = () => {
+    router.reload({ only: ['consumptionRequest'] });
+};
+
+const openRequestModification = (item) => {
+    if (!isRequestEditableForModification.value || item.open_modification) return;
+    selectedDetailForMod.value = item;
+    showRequestModModal.value = true;
+};
+
+const openResolveModification = (mod) => {
+    selectedModToResolve.value = mod;
+    showResolveModModal.value = true;
+};
+
+const openReturnModal = (mod) => {
+    selectedModForReturn.value = mod;
+    showReturnModModal.value = true;
+};
+
+const getModificationDisabledTooltip = (item) => {
+    if (item.open_modification) {
+        return 'Ya existe una solicitud de modificación abierta para este detalle';
+    }
+    if (!isRequestEditableForModification.value) {
+        return 'El estado actual de la solicitud no admite modificaciones de detalle';
+    }
+    return 'Solicitar modificación de producto o cantidad';
+};
+
+const allModifications = computed(() => {
+    return (request.value?.details || []).flatMap((d) => d.modifications || []);
+});
+
 const canUserDispatch = computed(() => {
     const user = page.props.auth?.user;
     if (!user) return false;
     const roles = user.roles || [];
     const hasRole = roles.includes('Almacén') || roles.includes('almacen');
-    const hasStatus = request.value?.status === 'aprobado';
+    const hasStatus = ['aprobado', 'despachado_parcial'].includes(request.value?.status);
     return hasRole && hasStatus;
 });
 
@@ -191,6 +254,26 @@ const subscribeToBranch = (branchId) => {
                             });
                         }
                     }
+                }
+            })
+            .listen('.consumption-modification.requested', (e) => {
+                if (e.consumption_request_id === request.value.id) {
+                    reloadRequest();
+                }
+            })
+            .listen('.consumption-modification.resolved', (e) => {
+                if (e.consumption_request_id === request.value.id) {
+                    reloadRequest();
+                }
+            })
+            .listen('.consumption-modification.return-recorded', (e) => {
+                if (e.consumption_request_id === request.value.id) {
+                    reloadRequest();
+                }
+            })
+            .listen('.consumption-modification.applied', (e) => {
+                if (e.consumption_request_id === request.value.id) {
+                    reloadRequest();
                 }
             });
     }
@@ -366,9 +449,9 @@ const statusBadgeClass = computed(() => {
         case 'parcial':
             return 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/10 dark:bg-blue-500/10 dark:text-blue-400 dark:ring-blue-500/20';
         case 'despachado':
-            return 'bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-600/10 dark:bg-fuchsia-500/10 dark:text-fuchsia-400 dark:ring-fuchsia-500/20';
+            return 'bg-sky-50 text-sky-700 ring-1 ring-sky-600/10 dark:bg-sky-500/10 dark:text-sky-400 dark:ring-sky-500/20';
         case 'despachado_parcial':
-            return 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600/10 dark:bg-indigo-500/10 dark:text-indigo-400 dark:ring-indigo-500/20';
+            return 'bg-primary-50 text-primary-700 ring-1 ring-primary-600/10 dark:bg-primary-500/10 dark:text-primary-400 dark:ring-primary-500/20';
         case 'cancelado':
             return 'bg-rose-50 text-rose-700 ring-1 ring-rose-600/10 dark:bg-rose-500/10 dark:text-rose-400 dark:ring-rose-500/20';
         default:
@@ -415,13 +498,22 @@ const hasAnyStockToDispatch = computed(() => {
     return totalDeliverableQuantity.value > 0;
 });
 
+const hasDispatchablePendingItems = computed(() => {
+    return (request.value?.details || []).some((item) => {
+        if (item.open_modification || item.fulfillment_status === 'pending_return') {
+            return false;
+        }
+        return (parseFloat(item.quantity_requested || 0) - parseFloat(item.quantity_delivered || 0)) > 0.0001;
+    });
+});
+
 // Stepper del Ciclo de Vida Operativo
 const lifecycleSteps = computed(() => {
     const s = request.value?.status;
     const isCancelled = s === 'cancelado';
     const isObserved = s === 'observado';
     const isApproved = !!request.value?.approved_by_user || ['aprobado', 'despachado', 'despachado_parcial', 'entregado'].includes(s);
-    const isDispatched = !!request.value?.dispatched_by_user || ['despachado', 'despachado_parcial', 'entregado'].includes(s);
+    const isDispatched = ['despachado', 'despachado_parcial', 'entregado'].includes(s);
     const isDelivered = s === 'entregado';
 
     return [
@@ -461,9 +553,9 @@ const lifecycleSteps = computed(() => {
             badge: isDispatched ? ((s === 'despachado_parcial' || s === 'parcial') ? 'Parcial' : 'Despachado') : (isApproved ? 'En Preparación' : 'Pendiente'),
             badgeClass: isDispatched 
                 ? ((s === 'despachado_parcial' || s === 'parcial') 
-                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/30' 
-                    : 'bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-500/10 dark:text-fuchsia-400 border border-fuchsia-200/50 dark:border-fuchsia-800/30') 
-                : (isApproved ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border border-indigo-200/50 animate-pulse' : 'bg-zinc-100 text-zinc-600 dark:bg-secondary-800 dark:text-secondary-400 border border-zinc-200 dark:border-secondary-700')
+                    ? 'bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-400 border border-primary-200/50 dark:border-primary-800/30' 
+                    : 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border border-sky-200/50 dark:border-sky-800/30') 
+                : (isApproved ? 'bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-400 border border-primary-200/50 animate-pulse' : 'bg-zinc-100 text-zinc-600 dark:bg-secondary-800 dark:text-secondary-400 border border-zinc-200 dark:border-secondary-700')
         },
         {
             key: 'reception',
@@ -491,16 +583,23 @@ const primaryMobileAction = computed(() => {
     if (isAdmin.value && (s === 'pendiente' || s === 'observado')) {
         return { type: 'approve', label: 'Aprobar Solicitud', icon: 'check', class: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30' };
     }
-    if (canUserDispatch.value && hasAnyStockToDispatch.value) {
-        return { type: 'dispatch', label: 'Despachar Stock', icon: 'local_shipping', class: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30' };
+    if (canUserDispatch.value && hasDispatchablePendingItems.value) {
+        return {
+            type: 'dispatch',
+            label: hasAnyStockToDispatch.value ? 'Despachar Stock' : 'Registrar Sin Existencias',
+            icon: hasAnyStockToDispatch.value ? 'local_shipping' : 'production_quantity_limits',
+            class: hasAnyStockToDispatch.value
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
+                : 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/30'
+        };
     }
-    if (isConsumidorRole.value && (s === 'despachado' || s === 'despachado_parcial')) {
-        return { type: 'receive', label: 'Confirmar Recepción', icon: 'inventory_2', class: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30' };
+    if (isConsumidorRole.value && (s === 'despachado' || s === 'despachado_parcial') && !request.value?.has_open_modifications) {
+        return { type: 'receive', label: 'Confirmar Recepción', icon: 'inventory_2', class: 'bg-primary-600 hover:bg-primary-700 text-white shadow-primary-600/30' };
     }
     if (!isConsumidorRole.value && (s === 'pendiente' || s === 'aprobado' || s === 'despachado_parcial') && !isFullyStocked.value) {
-        return { type: 'purchase', label: 'Comprar Faltantes', icon: 'shopping_cart', class: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30' };
+        return { type: 'purchase', label: 'Comprar Faltantes', icon: 'shopping_cart', class: 'bg-primary-600 hover:bg-primary-700 text-white shadow-primary-600/30' };
     }
-    if (isAdmin.value && s === 'aprobado') {
+    if (isAdmin.value && s === 'aprobado' && !request.value?.has_open_modifications) {
         return { type: 'cancel', label: 'Cancelar Solicitud', icon: 'close', class: 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400' };
     }
     return null;
@@ -512,6 +611,31 @@ const getItemStatusInfo = (item) => {
     const delivQty = parseFloat(item.quantity_delivered || 0);
     const recvQty = item.quantity_received !== null && item.quantity_received !== undefined ? parseFloat(item.quantity_received) : null;
     const inputQty = receivedQuantities.value[item.id] !== undefined ? parseFloat(receivedQuantities.value[item.id]) : null;
+
+    // 0. Estados especiales de modificación / abastecimiento
+    if (item.fulfillment_status === 'pending_return') {
+        return {
+            label: `DEVOLUCIÓN PENDIENTE (${item.open_modification?.pending_return_quantity ?? ''})`,
+            icon: 'assignment_return',
+            class: 'bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 font-black'
+        };
+    }
+
+    if (item.open_modification?.status === 'pendiente') {
+        return {
+            label: 'MODIFICACIÓN PENDIENTE',
+            icon: 'swap_horiz',
+            class: 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 font-black'
+        };
+    }
+
+    if (item.fulfillment_status === 'pending_stock' && delivQty < reqQty) {
+        return {
+            label: 'SIN EXISTENCIAS (COMPRA PEND.)',
+            icon: 'production_quantity_limits',
+            class: 'bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700 font-black'
+        };
+    }
 
     // 1. Estado final entregado
     if (s === 'entregado' || recvQty !== null) {
@@ -545,7 +669,7 @@ const getItemStatusInfo = (item) => {
                 return {
                     label: 'POR CONFIRMAR RECEPCIÓN',
                     icon: 'inventory',
-                    class: 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-black'
+                    class: 'bg-primary-100 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800 font-black'
                 };
             }
 
@@ -554,13 +678,13 @@ const getItemStatusInfo = (item) => {
                 return {
                     label: 'DESPACHADO',
                     icon: 'local_shipping',
-                    class: 'bg-fuchsia-600 text-white shadow-sm font-extrabold'
+                    class: 'bg-sky-600 text-white shadow-sm font-extrabold'
                 };
             }
             return {
                 label: `DESPACHO PARCIAL (${delivQty.toFixed(0)}/${reqQty.toFixed(0)})`,
                 icon: 'local_shipping',
-                class: 'bg-indigo-600 text-white shadow-sm font-extrabold'
+                class: 'bg-primary-600 text-white shadow-sm font-extrabold'
             };
         }
     }
@@ -610,6 +734,9 @@ const handleDispatch = () => {
     let totalToDispatch = 0;
     
     request.value.details.forEach((item) => {
+        if (item.open_modification || item.fulfillment_status === 'pending_return') {
+            return;
+        }
         const pending = item.quantity_requested - item.quantity_delivered;
         if (pending > 0) {
             const rawVal = dispatchQuantities.value[item.id];
@@ -643,11 +770,11 @@ const handleDispatch = () => {
         return;
     }
 
-    if (totalToDispatch === 0) {
+    if (Object.keys(payload).length === 0) {
         Swal.fire({
             icon: 'warning',
             title: 'Validación de Despacho',
-            text: 'Debe ingresar al menos una cantidad mayor a 0 para despachar.'
+            text: 'No hay productos habilitados pendientes de despacho.'
         });
         return;
     }
@@ -658,7 +785,7 @@ const handleDispatch = () => {
             <p class="text-sm text-zinc-600 dark:text-secondary-300 text-left mb-4" style="font-family: inherit;">Se registrará la salida física del inventario para las cantidades especificadas.</p>
             <div class="text-left">
                 <label class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1">Observación general (opcional)</label>
-                <textarea id="swal-dispatch-obs" rows="3" maxlength="500" placeholder="Nota sobre el despacho..." class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y" style="min-height: 60px;"></textarea>
+                <textarea id="swal-dispatch-obs" rows="3" maxlength="500" placeholder="Nota sobre el despacho..." class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y" style="min-height: 60px;"></textarea>
                 <div class="text-right mt-1"><span id="swal-dispatch-obs-counter" class="text-[8px] font-bold text-zinc-300 dark:text-secondary-600">0/500</span></div>
             </div>
         `,
@@ -756,7 +883,7 @@ const handleReceive = () => {
             <p class="text-sm text-zinc-600 dark:text-secondary-300 text-left mb-4" style="font-family: inherit;">Al confirmar, declararás que el área solicitante recibió físicamente las cantidades especificadas y se cerrará este ciclo de solicitud.</p>
             <div class="text-left">
                 <label class="block text-[9px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-widest mb-1">Observación (opcional)</label>
-                <textarea id="swal-receive-obs" rows="3" maxlength="500" placeholder="Nota sobre la recepción..." class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y" style="min-height: 60px;"></textarea>
+                <textarea id="swal-receive-obs" rows="3" maxlength="500" placeholder="Nota sobre la recepción..." class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y" style="min-height: 60px;"></textarea>
                 <div class="text-right mt-1"><span id="swal-receive-obs-counter" class="text-[8px] font-bold text-zinc-300 dark:text-secondary-600">0/500</span></div>
             </div>
         `,
@@ -767,7 +894,7 @@ const handleReceive = () => {
         customClass: {
             popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
             title: 'text-zinc-900 dark:text-white font-black',
-            confirmButton: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
+            confirmButton: 'bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
         buttonsStyling: false,
@@ -827,7 +954,7 @@ const handleGeneratePurchaseOrder = () => {
             popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
             title: 'text-zinc-900 dark:text-white font-black',
             htmlContainer: 'text-zinc-600 dark:text-secondary-300',
-            confirmButton: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
+            confirmButton: 'bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
         buttonsStyling: false
@@ -925,7 +1052,7 @@ const handleEditQuantity = (item) => {
                         step="0.01" 
                         min="0.01" 
                         value="${item.quantity_requested}" 
-                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-bold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-800 dark:text-secondary-100"
+                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-bold p-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-zinc-800 dark:text-secondary-100"
                     />
                 </div>
                 <div>
@@ -937,7 +1064,7 @@ const handleEditQuantity = (item) => {
                         rows="2" 
                         maxlength="500" 
                         placeholder="Explique el motivo del cambio..." 
-                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y"
+                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y"
                     ></textarea>
                 </div>
             </div>
@@ -949,7 +1076,7 @@ const handleEditQuantity = (item) => {
         customClass: {
             popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
             title: 'text-zinc-900 dark:text-white font-black',
-            confirmButton: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
+            confirmButton: 'bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
         buttonsStyling: false,
@@ -1026,7 +1153,7 @@ const handleEditDispatchQuantity = (item) => {
                         min="0" 
                         max="${Math.min(pendingToDeliver, maxStock)}"
                         value="${currentVal}" 
-                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-bold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-800 dark:text-secondary-100"
+                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-sm font-bold p-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-zinc-800 dark:text-secondary-100"
                     />
                 </div>
                 <div>
@@ -1038,7 +1165,7 @@ const handleEditDispatchQuantity = (item) => {
                         rows="2" 
                         maxlength="500" 
                         placeholder="Explique el motivo si se despacha cantidad parcial o en cero..." 
-                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y"
+                        class="w-full rounded-xl border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-semibold p-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-zinc-700 dark:text-secondary-300 placeholder-zinc-400 dark:placeholder-secondary-500 resize-y"
                     >${currentObs}</textarea>
                 </div>
             </div>
@@ -1050,7 +1177,7 @@ const handleEditDispatchQuantity = (item) => {
         customClass: {
             popup: 'bg-white dark:bg-secondary-800 border border-zinc-200 dark:border-secondary-700 rounded-3xl',
             title: 'text-zinc-900 dark:text-white font-black',
-            confirmButton: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
+            confirmButton: 'bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-4 rounded-xl mr-2 text-xs uppercase',
             cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase dark:bg-secondary-900 dark:text-secondary-300 dark:hover:bg-secondary-950'
         },
         buttonsStyling: false,
@@ -1184,9 +1311,9 @@ const prevImage = () => {
         <!-- BREADCRUMB & TOP ACTIONS -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-zinc-200/60 dark:border-secondary-800 pb-3">
             <nav class="flex items-center gap-2 text-[11px] font-bold text-zinc-400 dark:text-secondary-500 uppercase tracking-wider">
-                <Link :href="route('admin.dashboard')" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Inicio</Link>
+                <Link :href="route('admin.dashboard')" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Inicio</Link>
                 <span>/</span>
-                <Link :href="route('admin.consumption-requests.index')" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Solicitudes de Consumo</Link>
+                <Link :href="route('admin.consumption-requests.index')" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Solicitudes de Consumo</Link>
                 <span>/</span>
                 <span class="text-zinc-800 dark:text-secondary-200">#{{ request.formatted_number || 'S/N' }}</span>
             </nav>
@@ -1208,7 +1335,7 @@ const prevImage = () => {
                 <a 
                     :href="route('admin.consumption-requests.print', { consumption_request: request.id })" 
                     target="_blank"
-                    class="inline-flex items-center justify-center h-9 px-3.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all gap-1.5 shadow-sm shadow-indigo-500/20"
+                    class="inline-flex items-center justify-center h-9 px-3.5 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all gap-1.5 shadow-sm shadow-primary-500/20"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0a2.25 2.25 0 0 1-2.24 2.156H8.58A2.25 2.25 0 0 1 6.34 18m11.32 0h-11.32m11.32 0a2.25 2.25 0 0 0 2.25-2.25V9A2.25 2.25 0 0 0 15 6.75h-2.25V4.5a2.25 2.25 0 0 0-2.25-2.25h-3a2.25 2.25 0 0 0-2.25 2.25v2.25H3A2.25 2.25 0 0 0 .75 9v6.75a2.25 2.25 0 0 0 2.25 2.25h1.36m3.93 0h3.14m1.36 0h1.36M6.75 22.5h10.5" />
@@ -1233,7 +1360,7 @@ const prevImage = () => {
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div class="space-y-1.5">
                     <div class="flex items-center gap-2.5 flex-wrap">
-                        <span class="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/40 font-mono">
+                        <span class="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 border border-primary-200/50 dark:border-primary-800/40 font-mono">
                             CONSUMO INTERNO
                         </span>
                         <span 
@@ -1262,7 +1389,7 @@ const prevImage = () => {
                 <div class="flex flex-wrap items-center gap-2 text-xs">
                     <!-- Área Solicitante -->
                     <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-50 dark:bg-secondary-900/60 border border-zinc-200/60 dark:border-secondary-700">
-                        <span class="material-symbols-outlined text-[16px] text-indigo-500">meeting_room</span>
+                        <span class="material-symbols-outlined text-[16px] text-primary-500">meeting_room</span>
                         <span class="font-black text-zinc-800 dark:text-secondary-100 uppercase tracking-tight">{{ request.requested_by }}</span>
                     </div>
 
@@ -1295,7 +1422,7 @@ const prevImage = () => {
                         class="p-3 rounded-2xl border transition-all duration-300 flex flex-col justify-between gap-1.5 relative overflow-hidden"
                         :class="[
                             st.status === 'completed' ? 'bg-emerald-500/5 dark:bg-emerald-500/10 border-emerald-500/30 dark:border-emerald-500/20' : '',
-                            st.status === 'current' ? 'bg-indigo-500/5 dark:bg-indigo-500/10 border-indigo-500/40 ring-1 ring-indigo-500/20 shadow-sm' : '',
+                            st.status === 'current' ? 'bg-primary-500/5 dark:bg-primary-500/10 border-primary-500/40 ring-1 ring-primary-500/20 shadow-sm' : '',
                             st.status === 'warning' ? 'bg-orange-500/5 dark:bg-orange-500/10 border-orange-500/40' : '',
                             st.status === 'danger' ? 'bg-rose-500/5 dark:bg-rose-500/10 border-rose-500/40' : '',
                             st.status === 'pending' ? 'bg-zinc-50/50 dark:bg-secondary-900/20 border-zinc-200/60 dark:border-secondary-700/50 opacity-60' : ''
@@ -1433,17 +1560,17 @@ const prevImage = () => {
                 <!-- BANNER GUÍA DE RECEPCIÓN PARA EL CONSUMIDOR -->
                 <div 
                     v-if="isConsumidorRole && (request.status === 'despachado' || request.status === 'despachado_parcial')"
-                    class="p-4 rounded-3xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs"
+                    class="p-4 rounded-3xl bg-primary-50/90 dark:bg-primary-950/40 border border-primary-200/80 dark:border-primary-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs"
                 >
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm shadow-indigo-600/30">
+                        <div class="w-10 h-10 rounded-2xl bg-primary-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm shadow-primary-600/30">
                             <span class="material-symbols-outlined text-xl">inventory</span>
                         </div>
                         <div>
-                            <h4 class="text-xs font-black text-indigo-950 dark:text-indigo-200 uppercase tracking-wide">
+                            <h4 class="text-xs font-black text-primary-950 dark:text-primary-200 uppercase tracking-wide">
                                 Despacho Listo para Recepción
                             </h4>
-                            <p class="text-[11px] text-indigo-850 dark:text-indigo-300 font-medium leading-relaxed mt-0.5">
+                            <p class="text-[11px] text-primary-850 dark:text-primary-300 font-medium leading-relaxed mt-0.5">
                                 Almacén ya preparó y envió tus insumos. Revisa las cantidades recibidas en la columna <strong>Recibido</strong> y presiona el botón para confirmar la recepción física.
                             </p>
                         </div>
@@ -1451,11 +1578,38 @@ const prevImage = () => {
                     <button 
                         type="button"
                         @click="handleReceive"
-                        class="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 flex-shrink-0 cursor-pointer"
+                        class="w-full sm:w-auto px-4 py-2 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-primary-600/20 flex items-center justify-center gap-1.5 flex-shrink-0 cursor-pointer"
                     >
                         <span class="material-symbols-outlined text-[16px]">check_circle</span>
                         <span>Confirmar Recepción</span>
                     </button>
+                </div>
+
+                <!-- BANNER DE BLOQUEO POR MODIFICACIÓN ABIERTA -->
+                <div
+                    v-if="request.has_open_modifications"
+                    class="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                >
+                    <div class="flex items-start gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center flex-shrink-0">
+                            <span class="material-symbols-outlined">swap_horiz</span>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-black uppercase tracking-wide text-amber-900 dark:text-amber-200">
+                                Modificación de Producto en Curso ({{ request.open_modifications_count }})
+                            </h4>
+                            <p class="text-[11px] font-semibold text-amber-800 dark:text-amber-300 mt-0.5">
+                                La recepción final y la cancelación de esta solicitud permanecen bloqueadas mientras existan modificaciones pendientes de resolución o devoluciones físicas incompletas.
+                            </p>
+                        </div>
+                    </div>
+                    <Link
+                        v-if="canApproveModification"
+                        :href="route('admin.consumption-modifications.index', { consumption_request_id: request.id, status: 'abiertas' })"
+                        class="px-3.5 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-black uppercase tracking-wider whitespace-nowrap"
+                    >
+                        Abrir Bandeja
+                    </Link>
                 </div>
 
                 <!-- CONTENEDOR DE INSUMOS SOLICITADOS -->
@@ -1496,7 +1650,7 @@ const prevImage = () => {
                                             <!-- Imagen del Producto -->
                                             <div 
                                                 class="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-secondary-900 border border-zinc-200 dark:border-secondary-700/60 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-inner group relative"
-                                                :class="{ 'cursor-pointer hover:border-indigo-500/50 transition-colors': item.product_image_url || (item.product_images && item.product_images.length > 0) }"
+                                                :class="{ 'cursor-pointer hover:border-primary-500/50 transition-colors': item.product_image_url || (item.product_images && item.product_images.length > 0) }"
                                                 @click="openGallery(item.product_images || item.product_image_url, item.product_name)"
                                             >
                                                 <img 
@@ -1536,7 +1690,7 @@ const prevImage = () => {
                                                     </span>
 
                                                     <!-- MARCA -->
-                                                    <span v-if="item.product_brand" class="px-1.5 py-0.5 rounded font-black tracking-wider uppercase bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/30">
+                                                    <span v-if="item.product_brand" class="px-1.5 py-0.5 rounded font-black tracking-wider uppercase bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 border border-primary-200/50 dark:border-primary-800/30">
                                                         Marca: {{ item.product_brand }}
                                                     </span>
 
@@ -1580,7 +1734,7 @@ const prevImage = () => {
                                                 v-if="isAdmin && (request.status === 'pendiente' || request.status === 'observado')"
                                                 @click="handleEditQuantity(item)"
                                                 type="button"
-                                                class="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors ml-0.5"
+                                                class="p-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-950/40 text-zinc-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors ml-0.5"
                                                 title="Editar cantidad solicitada"
                                             >
                                                 <span class="material-symbols-outlined text-[15px]">edit</span>
@@ -1598,7 +1752,7 @@ const prevImage = () => {
                                                         step="0.01" 
                                                         min="0" 
                                                         v-model.number="receivedQuantities[item.id]" 
-                                                        class="w-20 text-right rounded-lg border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-bold p-1 focus:ring-0 focus:border-indigo-500 text-zinc-800 dark:text-secondary-100"
+                                                        class="w-20 text-right rounded-lg border border-zinc-200 dark:border-secondary-700 bg-zinc-50 dark:bg-secondary-900 text-xs font-bold p-1 focus:ring-0 focus:border-primary-500 text-zinc-800 dark:text-secondary-100"
                                                     />
                                                     <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500">{{ item.unit_of_measure }}</span>
                                                 </div>
@@ -1624,7 +1778,7 @@ const prevImage = () => {
                                             </div>
                                         </div>
                                         <span v-else class="flex flex-col items-center justify-center gap-1">
-                                            <span class="text-xs font-black font-mono" :class="item.quantity_received !== null && item.quantity_received > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-secondary-500'">
+                                            <span class="text-xs font-black font-mono" :class="item.quantity_received !== null && item.quantity_received > 0 ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-400 dark:text-secondary-500'">
                                                 {{ item.quantity_received !== null ? Number(item.quantity_received).toFixed(2) : '0.00' }} {{ item.unit_of_measure }}
                                             </span>
                                             <!-- Renderizado de la observación en modo lectura -->
@@ -1649,7 +1803,7 @@ const prevImage = () => {
                                             <button 
                                                 type="button"
                                                 @click="handleEditDispatchQuantity(item)"
-                                                class="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors ml-0.5"
+                                                class="p-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-950/40 text-zinc-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors ml-0.5"
                                                 title="Editar cantidad a despachar"
                                             >
                                                 <span class="material-symbols-outlined text-[15px]">edit</span>
@@ -1666,15 +1820,51 @@ const prevImage = () => {
                                         <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase ml-1">{{ item.unit_of_measure }}</span>
                                     </td>
 
-                                    <!-- BADGE DE ESTADO DEL ITEM -->
+                                    <!-- BADGE DE ESTADO Y ACCIONES DE MODIFICACIÓN DEL ITEM -->
                                     <td class="px-5 py-4 whitespace-nowrap text-right">
-                                        <span 
-                                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] tracking-wider transition-all"
-                                            :class="getItemStatusInfo(item).class"
-                                        >
-                                            <span class="material-symbols-outlined text-[13px]">{{ getItemStatusInfo(item).icon }}</span>
-                                            {{ getItemStatusInfo(item).label }}
-                                        </span>
+                                        <div class="flex flex-col items-end gap-1.5">
+                                            <span 
+                                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] tracking-wider transition-all"
+                                                :class="getItemStatusInfo(item).class"
+                                            >
+                                                <span class="material-symbols-outlined text-[13px]">{{ getItemStatusInfo(item).icon }}</span>
+                                                {{ getItemStatusInfo(item).label }}
+                                            </span>
+
+                                            <div v-if="!isConsumidorRole" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                <button
+                                                    v-if="canApproveModification && item.open_modification?.status === 'pendiente'"
+                                                    type="button"
+                                                    @click="openResolveModification(item.open_modification)"
+                                                    class="px-2.5 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1"
+                                                >
+                                                    <span class="material-symbols-outlined text-[13px]">fact_check</span>
+                                                    Revisar Cambio
+                                                </button>
+
+                                                <button
+                                                    v-if="(canRequestModification || canApproveModification) && item.fulfillment_status === 'pending_return' && item.open_modification"
+                                                    type="button"
+                                                    @click="openReturnModal(item.open_modification)"
+                                                    class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1"
+                                                >
+                                                    <span class="material-symbols-outlined text-[13px]">assignment_return</span>
+                                                    Registrar Devolución
+                                                </button>
+
+                                                <button
+                                                    v-if="canRequestModification"
+                                                    type="button"
+                                                    :disabled="!isRequestEditableForModification || !!item.open_modification"
+                                                    :title="getModificationDisabledTooltip(item)"
+                                                    @click="openRequestModification(item)"
+                                                    class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-colors inline-flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed bg-white hover:bg-zinc-100 dark:bg-secondary-900 dark:hover:bg-secondary-700 text-zinc-700 dark:text-secondary-200 border-zinc-200 dark:border-secondary-700"
+                                                >
+                                                    <span class="material-symbols-outlined text-[13px]">swap_horiz</span>
+                                                    Solicitar Modificación
+                                                </button>
+                                            </div>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>
@@ -1737,7 +1927,7 @@ const prevImage = () => {
                                     <span class="material-symbols-outlined text-[13px]">location_on</span>
                                     {{ item.product_location || 'Ubicación S/N' }}
                                 </span>
-                                <span v-if="item.product_brand" class="px-1.5 py-0.5 rounded font-black tracking-wider uppercase bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50">
+                                <span v-if="item.product_brand" class="px-1.5 py-0.5 rounded font-black tracking-wider uppercase bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 border border-primary-200/50">
                                     {{ item.product_brand }}
                                 </span>
                                 <span class="px-1.5 py-0.5 rounded font-black tracking-wider uppercase bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200/50">
@@ -1757,7 +1947,7 @@ const prevImage = () => {
                                             v-if="isAdmin && (request.status === 'pendiente' || request.status === 'observado')"
                                             @click="handleEditQuantity(item)"
                                             type="button"
-                                            class="p-0.5 rounded text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                                            class="p-0.5 rounded text-zinc-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                                             title="Editar cantidad"
                                         >
                                             <span class="material-symbols-outlined text-[14px]">edit</span>
@@ -1775,14 +1965,14 @@ const prevImage = () => {
                                 <div v-if="canUserDispatch" class="flex flex-col items-center justify-center">
                                     <span class="text-[8px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-wider">A Despachar</span>
                                     <div class="inline-flex items-center gap-1 mt-0.5">
-                                        <span class="text-xs font-black font-mono text-indigo-600 dark:text-indigo-400">
+                                        <span class="text-xs font-black font-mono text-primary-600 dark:text-primary-400">
                                             {{ Number(dispatchQuantities[item.id] !== undefined ? dispatchQuantities[item.id] : 0).toFixed(2) }} {{ item.unit_of_measure }}
                                         </span>
                                         <button 
                                             v-if="(item.quantity_requested - item.quantity_delivered) > 0"
                                             @click="handleEditDispatchQuantity(item)"
                                             type="button"
-                                            class="p-0.5 rounded text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                                            class="p-0.5 rounded text-zinc-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                                             title="Editar cantidad a despachar"
                                         >
                                             <span class="material-symbols-outlined text-[14px]">edit</span>
@@ -1792,7 +1982,7 @@ const prevImage = () => {
 
                                 <div v-if="request.status === 'despachado' || request.status === 'despachado_parcial' || request.status === 'entregado'" class="flex flex-col">
                                     <span class="text-[8px] font-black text-zinc-400 dark:text-secondary-500 uppercase tracking-wider">Recibido</span>
-                                    <span class="text-xs font-black font-mono mt-0.5" :class="item.quantity_received !== null && item.quantity_received > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-secondary-500'">
+                                    <span class="text-xs font-black font-mono mt-0.5" :class="item.quantity_received !== null && item.quantity_received > 0 ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-400 dark:text-secondary-500'">
                                         {{ item.quantity_received !== null ? Number(item.quantity_received).toFixed(2) : '0.00' }} {{ item.unit_of_measure }}
                                     </span>
                                 </div>
@@ -1811,7 +2001,7 @@ const prevImage = () => {
                                             step="0.01" 
                                             min="0" 
                                             v-model.number="receivedQuantities[item.id]" 
-                                            class="w-24 text-right rounded-lg border border-zinc-200 dark:border-secondary-700 bg-white dark:bg-secondary-900 text-xs font-black p-1.5 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-zinc-800 dark:text-secondary-100"
+                                            class="w-24 text-right rounded-lg border border-zinc-200 dark:border-secondary-700 bg-white dark:bg-secondary-900 text-xs font-black p-1.5 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 text-zinc-800 dark:text-secondary-100"
                                         />
                                         <span class="text-[10px] font-black text-zinc-400 dark:text-secondary-500 uppercase">{{ item.unit_of_measure }}</span>
                                     </div>
@@ -1836,9 +2026,46 @@ const prevImage = () => {
                                     </button>
                                 </div>
                             </div>
+                            <!-- Acciones de Modificación / Devolución en Móvil -->
+                            <div v-if="!isConsumidorRole" class="flex flex-wrap gap-2 pt-2 border-t border-zinc-100 dark:border-secondary-700/50">
+                                <button
+                                    v-if="canApproveModification && item.open_modification?.status === 'pendiente'"
+                                    type="button"
+                                    @click="openResolveModification(item.open_modification)"
+                                    class="flex-1 min-h-[40px] px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-wider inline-flex items-center justify-center gap-1"
+                                >
+                                    <span class="material-symbols-outlined text-sm">fact_check</span>
+                                    Revisar Cambio
+                                </button>
+
+                                <button
+                                    v-if="(canRequestModification || canApproveModification) && item.fulfillment_status === 'pending_return' && item.open_modification"
+                                    type="button"
+                                    @click="openReturnModal(item.open_modification)"
+                                    class="flex-1 min-h-[40px] px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-wider inline-flex items-center justify-center gap-1"
+                                >
+                                    <span class="material-symbols-outlined text-sm">assignment_return</span>
+                                    Registrar Devolución
+                                </button>
+
+                                <button
+                                    v-if="canRequestModification"
+                                    type="button"
+                                    :disabled="!isRequestEditableForModification || !!item.open_modification"
+                                    :title="getModificationDisabledTooltip(item)"
+                                    @click="openRequestModification(item)"
+                                    class="flex-1 min-h-[40px] px-3 rounded-xl bg-white hover:bg-zinc-100 dark:bg-secondary-900 dark:hover:bg-secondary-700 text-zinc-700 dark:text-secondary-200 border border-zinc-200 dark:border-secondary-700 text-[10px] font-black uppercase tracking-wider inline-flex items-center justify-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed"
+                                >
+                                    <span class="material-symbols-outlined text-sm">swap_horiz</span>
+                                    Solicitar Modificación
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- HISTORIAL INMUTABLE DE MODIFICACIONES -->
+                <ModificationHistoryCard :modifications="allModifications" />
             </div>
 
             <!-- COLUMNA DERECHA: FICHA OPERATIVA Y ACCIONES DESKTOP (30% Sticky) -->
@@ -1846,14 +2073,14 @@ const prevImage = () => {
                 <!-- FICHA OPERATIVA -->
                 <div class="bg-white dark:bg-secondary-800 rounded-3xl border border-zinc-200/70 dark:border-secondary-700/80 shadow-sm p-5 space-y-4 transition-all duration-300">
                     <h3 class="text-xs font-black text-zinc-900 dark:text-secondary-100 uppercase tracking-widest border-b border-zinc-100 dark:border-secondary-700 pb-3 flex items-center gap-1.5">
-                        <span class="material-symbols-outlined text-[16px] text-indigo-500">assignment</span>
+                        <span class="material-symbols-outlined text-[16px] text-primary-500">assignment</span>
                         Ficha Operativa
                     </h3>
                     
                     <div class="space-y-3">
                         <!-- Solicitud Info -->
                         <div class="p-3.5 bg-zinc-50 dark:bg-secondary-900/40 rounded-2xl border border-zinc-100 dark:border-secondary-700/60 space-y-2">
-                            <span class="block text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest border-b border-zinc-200/40 dark:border-secondary-700/30 pb-1">Registro Inicial</span>
+                            <span class="block text-[8px] font-black text-primary-500 dark:text-primary-400 uppercase tracking-widest border-b border-zinc-200/40 dark:border-secondary-700/30 pb-1">Registro Inicial</span>
                             <div class="text-xs space-y-1">
                                 <p class="text-[10px] font-bold text-zinc-400 uppercase">Área Solicitante:</p>
                                 <p class="font-black text-zinc-800 dark:text-secondary-100 uppercase">{{ request.requested_by }}</p>
@@ -1884,10 +2111,10 @@ const prevImage = () => {
                         </div>
 
                         <!-- Despacho -->
-                        <div v-if="request.dispatched_by_user" class="p-3.5 bg-indigo-50/70 dark:bg-indigo-950/20 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40 space-y-1">
-                            <span class="block text-[8px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Despacho</span>
-                            <p class="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase">{{ request.dispatched_by_user.name }}</p>
-                            <p class="text-[10px] font-semibold text-indigo-600/80">{{ request.dispatched_at_formatted }}</p>
+                        <div v-if="request.dispatched_by_user" class="p-3.5 bg-primary-50/70 dark:bg-primary-950/20 rounded-2xl border border-primary-200/60 dark:border-primary-900/40 space-y-1">
+                            <span class="block text-[8px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">Despacho</span>
+                            <p class="text-xs font-black text-primary-700 dark:text-primary-300 uppercase">{{ request.dispatched_by_user.name }}</p>
+                            <p class="text-[10px] font-semibold text-primary-600/80">{{ request.dispatched_at_formatted }}</p>
                         </div>
 
                         <!-- Recepción -->
@@ -1905,7 +2132,7 @@ const prevImage = () => {
                     class="bg-white dark:bg-secondary-800 rounded-3xl border border-zinc-200/70 dark:border-secondary-700/80 shadow-sm p-5 space-y-3.5 transition-all duration-300"
                 >
                     <h3 class="text-xs font-black text-zinc-900 dark:text-secondary-100 uppercase tracking-widest border-b border-zinc-100 dark:border-secondary-700 pb-3 flex items-center gap-1.5">
-                        <span class="material-symbols-outlined text-[16px] text-indigo-500">touch_app</span>
+                        <span class="material-symbols-outlined text-[16px] text-primary-500">touch_app</span>
                         Acciones Operativas
                     </h3>
 
@@ -1921,23 +2148,30 @@ const prevImage = () => {
                         <span>Aprobar Solicitud</span>
                     </button>
 
-                    <!-- Despachar stock (Almacén) -->
+                    <!-- Despachar stock o registrar falta de existencias (Almacén) -->
                     <button 
-                        v-if="canUserDispatch && hasAnyStockToDispatch"
+                        v-if="canUserDispatch && hasDispatchablePendingItems"
                         @click="handleDispatch"
-                        class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2"
+                        :class="[
+                            'w-full py-3.5 px-4 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2',
+                            hasAnyStockToDispatch
+                                ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-emerald-600/20'
+                                : 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800 shadow-amber-600/20'
+                        ]"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                        </svg>
-                        <span>Despachar Stock</span>
+                        <span class="material-symbols-outlined text-[18px]">
+                            {{ hasAnyStockToDispatch ? 'local_shipping' : 'production_quantity_limits' }}
+                        </span>
+                        <span>{{ hasAnyStockToDispatch ? 'Despachar Stock' : 'Registrar Sin Existencias' }}</span>
                     </button>
 
                     <!-- Confirmar Recepción (Consumidor) -->
                     <button 
                         v-if="isConsumidorRole && (request.status === 'despachado' || request.status === 'despachado_parcial')"
+                        :disabled="request.has_open_modifications"
+                        :title="request.has_open_modifications ? 'Bloqueado mientras existan modificaciones abiertas' : 'Confirmar recepción física'"
                         @click="handleReceive"
-                        class="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
+                        class="w-full py-3.5 px-4 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-primary-600/20 flex items-center justify-center gap-2"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 0 1 9 9v.375M10.125 2.25A3.375 3.375 0 0 1 13.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 0 1 3.375 3.375M9 15l2.25 2.25L15 12" />
@@ -1949,7 +2183,7 @@ const prevImage = () => {
                     <button 
                         v-if="!isConsumidorRole && (request.status === 'pendiente' || request.status === 'aprobado' || request.status === 'despachado_parcial') && !isFullyStocked"
                         @click="handleGeneratePurchaseOrder"
-                        class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
+                        class="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
@@ -1960,8 +2194,10 @@ const prevImage = () => {
                     <!-- Cancelar solicitud (Administrador en pendiente, observado o aprobado) -->
                     <button 
                         v-if="isAdmin && (request.status === 'pendiente' || request.status === 'observado' || request.status === 'aprobado')"
+                        :disabled="request.has_open_modifications"
+                        :title="request.has_open_modifications ? 'Bloqueado mientras existan modificaciones abiertas' : 'Cancelar solicitud'"
                         @click="handleCancel"
-                        class="w-full py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-2xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 border border-rose-200/50 dark:border-rose-900/30"
+                        class="w-full py-3 px-4 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-2xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 border border-rose-200/50 dark:border-rose-900/30"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -2002,7 +2238,7 @@ const prevImage = () => {
             
             <div class="absolute top-0 left-0 w-full p-4 sm:p-8 flex justify-between items-start z-[10000]">
                 <div class="px-5 py-2.5 sm:px-6 sm:py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-full shadow-2xl flex items-center gap-3 transform transition-all duration-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-indigo-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-primary-400">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25" />
                     </svg>
                     <h3 class="text-sm sm:text-base font-semibold tracking-wide text-white max-w-[150px] sm:max-w-md truncate">{{ previewName }}</h3>
@@ -2042,11 +2278,37 @@ const prevImage = () => {
                     <button v-for="(img, index) in previewImages" :key="'thumb-'+index"
                              @click.stop="currentImageIndex = index" 
                              class="relative flex-shrink-0 w-12 h-12 sm:w-16 sm:h-16 rounded-lg overflow-hidden transition-all duration-300" 
-                             :class="currentImageIndex === index ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-zinc-950 scale-110' : 'opacity-40 hover:opacity-100 border border-white/20'">
+                             :class="currentImageIndex === index ? 'ring-2 ring-primary-400 ring-offset-2 ring-offset-zinc-950 scale-110' : 'opacity-40 hover:opacity-100 border border-white/20'">
                         <img :src="img" class="w-full h-full object-cover">
                     </button>
                 </div>
             </div>
         </div>
+
+        <!-- MODALES DE SOLICITUDES DE MODIFICACIÓN Y DEVOLUCIÓN FÍSICA -->
+        <RequestModificationModal
+            :show="showRequestModModal"
+            :consumption-request-id="String(request.id || '')"
+            :warehouse-id="request.warehouse?.id || null"
+            :detail="selectedDetailForMod"
+            @close="showRequestModModal = false"
+            @submitted="reloadRequest"
+        />
+
+        <ResolveModificationModal
+            :show="showResolveModModal"
+            :modification="selectedModToResolve"
+            @close="showResolveModModal = false"
+            @resolved="reloadRequest"
+        />
+
+        <RecordReturnModal
+            :show="showReturnModModal"
+            :modification="selectedModForReturn"
+            :can-request-return="canRequestModification"
+            :can-admin-cancel="canApproveModification"
+            @close="showReturnModModal = false"
+            @updated="reloadRequest"
+        />
     </div>
 </template>

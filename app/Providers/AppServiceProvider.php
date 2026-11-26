@@ -25,6 +25,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton('order.service', function ($app) {
             return new \App\Services\OrderService();
         });
+
+        $this->app->singleton('consumption.modification.service', function ($app) {
+            return $app->make(\App\Services\ConsumptionRequestModificationService::class);
+        });
     }
 
     /**

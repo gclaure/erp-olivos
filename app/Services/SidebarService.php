@@ -98,6 +98,12 @@ class SidebarService
                         'route' => 'admin.consumption-requests.index',
                         'permission' => 'manage-consumption',
                     ],
+                    [
+                        'label' => 'Modificaciones Consumo',
+                        'icon' => 'adjustments-horizontal',
+                        'route' => 'admin.consumption-modifications.index',
+                        'permission' => 'approve-consumption-modification',
+                    ],
                 ]
             ],
             [

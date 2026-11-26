@@ -91,6 +91,7 @@ class ApiSelectController extends Controller
         $search = $request->get('search');
         $type = $request->get('type');
         $warehouseId = $request->get('warehouse_id');
+        $unitOfMeasureId = $request->get('unit_of_measure_id');
         
         $data = \App\Models\Product::query()
             ->select(['id', 'type', 'name', 'code', 'price', 'has_expiration', 'units_per_package', 'package_name', 'unit_of_measure_id'])
@@ -112,6 +113,7 @@ class ApiSelectController extends Controller
             }, 'last_purchase_price')
             ->where('is_active', true)
             ->when($type, fn($q, $t) => $q->where('type', $t))
+            ->when($unitOfMeasureId, fn($q, $uId) => $q->where('unit_of_measure_id', $uId))
             ->when($search, function($q, $search) {
                 $q->where(fn($subQ) =>
                     $subQ->where('name', 'ilike', "%{$search}%")
@@ -134,6 +136,7 @@ class ApiSelectController extends Controller
                 'has_expiration' => (bool)$p->has_expiration,
                 'units_per_package' => (float)$p->units_per_package,
                 'package_name' => $p->package_name,
+                'unit_of_measure_id' => $p->unit_of_measure_id,
                 'unit' => $p->unitOfMeasure?->abbreviation ?? 'UND',
                 'warehouses' => $p->stocks->map(fn($s) => $s->warehouse->name ?? null)->filter()->unique()->values()->all(),
             ]);

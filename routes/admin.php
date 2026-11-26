@@ -92,6 +92,11 @@ Route::group(['prefix' => 'purchase-orders', 'as' => 'purchase-orders.'], functi
     Route::post('/{purchase_order}/convert', [PurchaseOrderController::class, 'convertToPurchase'])->name('convert');
 });
 
+// Bandeja Administrativa de Modificaciones de Consumo
+Route::get('/consumption-modifications', [\App\Http\Controllers\Admin\ConsumptionRequestModificationController::class, 'index'])
+    ->middleware('permission:approve-consumption-modification')
+    ->name('consumption-modifications.index');
+
 // Solicitudes de Consumo Interno
 Route::group(['prefix' => 'consumption-requests', 'as' => 'consumption-requests.'], function() {
     Route::get('/', [ConsumptionRequestController::class, 'index'])->name('index');
@@ -112,11 +117,29 @@ Route::group(['prefix' => 'consumption-requests', 'as' => 'consumption-requests.
     Route::post('/{consumption_request}/approve', [ConsumptionRequestController::class, 'approve'])->name('approve');
     Route::post('/{consumption_request}/observe', [ConsumptionRequestController::class, 'observe'])->name('observe');
     Route::put('/{consumption_request}/details/{detail}', [ConsumptionRequestController::class, 'updateDetailQuantity'])->name('update-detail-quantity');
+
+    // Solicitudes de modificación por detalle
+    Route::post('/{consumption_request}/details/{detail}/modifications', [\App\Http\Controllers\Admin\ConsumptionRequestModificationController::class, 'store'])
+        ->middleware('permission:request-consumption-modification')
+        ->name('modifications.store');
+    Route::post('/{consumption_request}/modifications/{modification}/approve', [\App\Http\Controllers\Admin\ConsumptionRequestModificationController::class, 'approve'])
+        ->middleware('permission:approve-consumption-modification')
+        ->name('modifications.approve');
+    Route::post('/{consumption_request}/modifications/{modification}/reject', [\App\Http\Controllers\Admin\ConsumptionRequestModificationController::class, 'reject'])
+        ->middleware('permission:approve-consumption-modification')
+        ->name('modifications.reject');
+    Route::post('/{consumption_request}/modifications/{modification}/returns', [\App\Http\Controllers\Admin\ConsumptionRequestModificationController::class, 'confirmReturn'])
+        ->middleware('permission:request-consumption-modification')
+        ->name('modifications.returns.store');
+    Route::post('/{consumption_request}/modifications/{modification}/cancel', [\App\Http\Controllers\Admin\ConsumptionRequestModificationController::class, 'cancel'])
+        ->middleware('permission:approve-consumption-modification')
+        ->name('modifications.cancel');
 });
 
 // Registro e Historial de Pedidos
-Route::group(['prefix' => 'orders', 'as' => 'orders.'], function () {
+Route::group(['prefix' => 'orders', 'as' => 'orders.', 'middleware' => ['permission:manage-orders']], function () {
     Route::get('/', [OrderController::class, 'index'])->name('index');
+    Route::get('/export-excel', [OrderController::class, 'exportExcel'])->name('export-excel');
     Route::get('/create', [OrderController::class, 'create'])->name('create');
     Route::post('/', [OrderController::class, 'store'])->name('store');
     Route::get('/customers/search', [OrderController::class, 'searchCustomers'])->name('customers.search');

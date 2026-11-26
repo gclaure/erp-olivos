@@ -10,14 +10,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class PurchaseOrderResource extends JsonResource
 {
     /**
-     * Transform the resource into an array.
-     *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
+            'consumption_request_id' => $this->consumption_request_id,
             'date' => $this->date?->format('Y-m-d'),
             'date_formatted' => $this->date ? $this->date->translatedFormat('l, d \d\e F \d\e Y') : '—',
             'provider' => [
@@ -32,7 +31,7 @@ class PurchaseOrderResource extends JsonResource
                 'id' => $this->user?->id,
                 'name' => $this->user?->name,
             ],
-            'status' => $this->status, // 'pendiente', 'completada', 'cancelada'
+            'status' => $this->status,
             'total' => (float) $this->total,
             'notes' => $this->notes,
             'details' => PurchaseOrderDetailResource::collection($this->whenLoaded('details')),
