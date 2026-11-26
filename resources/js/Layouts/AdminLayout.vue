@@ -31,11 +31,10 @@ const toggleDarkMode = () => {
 };
 
 const toggleMenu = (label) => {
-    const index = openMenus.value.indexOf(label);
-    if (index > -1) {
-        openMenus.value.splice(index, 1);
+    if (openMenus.value.includes(label)) {
+        openMenus.value = [];
     } else {
-        openMenus.value.push(label);
+        openMenus.value = [label];
     }
     localStorage.setItem('openMenus', JSON.stringify(openMenus.value));
 };
@@ -44,10 +43,33 @@ const isMenuOpen = (label) => {
     return openMenus.value.includes(label);
 };
 
+const syncActiveMenuWithRoute = () => {
+    if (!sidebarItems.value || sidebarItems.value.length === 0) return;
+    for (const item of sidebarItems.value) {
+        if (item.children && Array.isArray(item.children)) {
+            const hasActiveChild = item.children.some((child) => child.route && route().current(child.route));
+            if (hasActiveChild) {
+                openMenus.value = [item.label];
+                localStorage.setItem('openMenus', JSON.stringify(openMenus.value));
+                return;
+            }
+        }
+    }
+};
+
 onMounted(() => {
     document.documentElement.classList.toggle('dark', darkMode.value);
     document.documentElement.classList.toggle('sidebar-mini', sidebarMini.value);
+    syncActiveMenuWithRoute();
 });
+
+watch(() => page.url, () => {
+    syncActiveMenuWithRoute();
+});
+
+watch(sidebarItems, () => {
+    syncActiveMenuWithRoute();
+}, { deep: true });
 
 // Map icons from Blade to Material Symbols or Heroicons
 const getIcon = (iconName) => {
@@ -170,7 +192,7 @@ watch(() => page.props.flash, (flash) => {
                               preserve-scroll
                               :class="[
                                   'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group',
-                                  route().current(item.route) ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                                  route().current(item.route) ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'text-zinc-400 hover:text-white hover:bg-white/5'
                               ]">
                             <span class="material-symbols-outlined flex-shrink-0" :class="route().current(item.route) ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'">
                                 {{ getIcon(item.icon) }}
@@ -185,7 +207,7 @@ watch(() => page.props.flash, (flash) => {
                                         'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group',
                                         isMenuOpen(item.label) ? 'text-white bg-white/5' : 'text-zinc-400 hover:text-white hover:bg-white/5'
                                     ]">
-                                <span class="material-symbols-outlined flex-shrink-0" :class="isMenuOpen(item.label) ? 'text-indigo-400' : 'text-zinc-500 group-hover:text-zinc-300'">
+                                <span class="material-symbols-outlined flex-shrink-0" :class="isMenuOpen(item.label) ? 'text-primary-400' : 'text-zinc-500 group-hover:text-zinc-300'">
                                     {{ getIcon(item.icon) }}
                                 </span>
                                 <span v-if="!sidebarMini" class="flex-1 text-left truncate">{{ item.label }}</span>
@@ -219,7 +241,7 @@ watch(() => page.props.flash, (flash) => {
                                           preserve-scroll
                                           :class="[
                                               'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors',
-                                              route().current(child.route) ? 'text-indigo-400 bg-indigo-400/10' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+                                              route().current(child.route) ? 'text-primary-400 bg-primary-400/10' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
                                           ]">
                                         <span class="material-symbols-outlined text-[18px]">
                                             {{ getIcon(child.icon) }}
@@ -237,7 +259,7 @@ watch(() => page.props.flash, (flash) => {
             <div class="border-t border-zinc-800 flex-shrink-0 transition-all duration-300"
                  :class="sidebarMini ? 'p-2' : 'p-4'">
                 <div class="flex items-center gap-3" :class="sidebarMini ? 'justify-center' : ''">
-                    <div class="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-lg">
+                    <div class="w-9 h-9 rounded-full bg-primary-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-lg">
                         {{ user?.initials || 'A' }}
                     </div>
                     <div v-if="!sidebarMini" class="flex-1 min-w-0">
